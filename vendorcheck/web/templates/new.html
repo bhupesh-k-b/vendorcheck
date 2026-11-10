@@ -91,9 +91,9 @@
         {{ field('legal_name', 'Legal business name', 'As registered', hint=False) }}
 
         <fieldset class="contents" x-show="fields.country === 'IN'" :disabled="fields.country !== 'IN'">
-          {{ field('gstin', 'GSTIN', '15 characters') }}
-          {{ field('pan', 'PAN', '10 characters') }}
-          {{ field('cin', 'CIN (companies)', '21 characters') }}
+          {% if details_on.gstin %}{{ field('gstin', 'GSTIN', '15 characters') }}{% endif %}
+          {% if details_on.pan %}{{ field('pan', 'PAN', '10 characters') }}{% endif %}
+          {% if details_on.cin %}{{ field('cin', 'CIN (companies)', '21 characters') }}{% endif %}
           <div>
             <span class="block text-sm font-medium text-slate-700">MSME</span>
             <div class="mt-2.5 flex gap-5 text-sm"><label class="flex items-center gap-2"><input type="radio" name="msme" value="no" checked x-model="msme" class="text-accent-600"> No</label>
@@ -107,6 +107,7 @@
       </div>
     </section>
 
+    {% if details_on.bank %}
     <section class="card card-pad" aria-labelledby="bank-h">
       <h2 id="bank-h" class="section-title">Bank details</h2>
       <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
@@ -125,6 +126,26 @@
         </fieldset>
       </div>
     </section>
+
+    {% endif %}
+
+    {% if custom_details %}
+    <section class="card card-pad" aria-labelledby="more-h" id="more-details">
+      <h2 id="more-h" class="section-title">Additional details</h2>
+      <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
+        {% for d in custom_details %}
+          {% set cond = 'true' if d.applies == 'all' else ("fields.country === 'IN'" if d.applies == 'india' else "fields.country !== 'IN'") %}
+          <div x-show="{{ cond }}" {% if d.applies != 'all' %}x-cloak{% endif %}>
+            <label for="f-x_{{ d.key }}" class="block text-sm font-medium text-slate-700">{{ d.label }}{% if d.required %}<span class="text-rose-500" title="Required"> *</span>{% endif %}</label>
+            <input id="f-x_{{ d.key }}" name="x_{{ d.key }}" x-model="fields.x_{{ d.key }}" :disabled="!({{ cond }})" autocomplete="off" placeholder="{{ d.format }}"
+                   class="mono mt-1.5 block w-full rounded-lg border-slate-300 text-sm">
+            <p class="mt-1 min-h-[1.1rem] text-xs" :class='!fields.x_{{ d.key }} ? "" : (fmtOk({{ d.format|tojson }}, fields.x_{{ d.key }}) ? "text-emerald-700" : "text-amber-700")'
+               x-text='!fields.x_{{ d.key }} ? "" : (fmtOk({{ d.format|tojson }}, fields.x_{{ d.key }}) ? "✓ looks valid" : "Expected format {{ d.format }} (A letter, 9 digit)")'></p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
     <section class="card card-pad" aria-labelledby="contact-h">
       <h2 id="contact-h" class="section-title">Contact</h2>
@@ -157,10 +178,16 @@
 <script>
   function newForm(examples) {
     const blank = { vendor_type: '', expense_category: '', department_owner: '', negotiated_terms: '', system_terms: '', country: 'IN', legal_name: '', gstin: '', pan: '', cin: '', tax_id: '', iban: '', swift: '', routing_code: '', bank_account: '', bank_account_confirm: '', ifsc: '', account_holder: '', contact_name: '', contact_email: '', contact_phone: '', udyam_number: '' };
+    {{ custom_details|map(attribute='key')|list|tojson }}.forEach(k => { blank['x_' + k] = ''; });
     const prefill = JSON.parse(document.getElementById('prefill-data').textContent);
     return {
       examples, fields: { ...blank, ...prefill }, samples: '', simulate: false, note: '', picked: '', names: [], drag: false, busy: false, msme: 'no',
       init() { if (Object.keys(prefill).length) { this.note = 'Prefilled from the test bench.'; this.$nextTick(() => this.recheck()); } },
+      fmtOk(fmt, v) {      // A = letter, 9 = digit, * = letter or digit; spaces and dashes ignored
+        const flat = s => (s || '').toUpperCase().replace(/[\s-]/g, '');
+        const re = new RegExp('^' + [...flat(fmt)].map(c => c === 'A' ? '[A-Z]' : c === '9' ? '\\d' : c === '*' ? '[A-Z0-9]' : c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('') + '$');
+        return re.test(flat(v));
+      },
       recheck() { document.querySelectorAll('[data-check]').forEach(el => el.dispatchEvent(new Event('change', { bubbles: true }))); },
       use(key) {
         const e = this.examples[key];

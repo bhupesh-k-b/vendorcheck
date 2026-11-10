@@ -29,7 +29,83 @@ DEFAULTS = {
     "blocklist": {"pans": [], "accounts": []},
     # Compliance documents: which built-in documents the checklist asks for (a switched-off one is not asked for), plus documents you add yourself.
     "documents": {"enabled": {}, "custom": []},
+    # Identity details: which built-in details are collected and checked, plus details you add yourself (format-checked).
+    "details": {"enabled": {}, "custom": []},
 }
+
+# built-in identity details: key -> (label, what switching it off does, the form fields it covers)
+DETAIL_KEYS = {
+    "gstin": ("GSTIN", "Off: no GSTIN field, format check or GST registry lookup", ["gstin"]),
+    "pan": ("PAN", "Off: no PAN field or PAN checks (the PAN inside a GSTIN is still read from it)", ["pan"]),
+    "cin": ("CIN", "Off: no CIN field, company-status check or CIN document comparison", ["cin"]),
+    "bank": ("Bank account and IFSC", "Off: no bank details are collected or checked, and Finance is not asked to confirm an account",
+             ["bank_account", "bank_account_confirm", "ifsc", "account_holder", "iban", "swift", "routing_code"]),
+}
+# quick-add templates for details you add: key -> (label, format, applies to, hint)
+DETAIL_PRESETS = {
+    "tan": ("TAN", "AAAA99999A", "india", "Tax Deduction Account Number, for example PNEK12345E"),
+    "fssai": ("FSSAI licence number", "99999999999999", "india", "14 digits"),
+    "iec": ("Import Export Code (IEC)", "**********", "all", "10 letters or digits"),
+    "duns": ("D-U-N-S number", "999999999", "all", "9 digits"),
+    "lei": ("Legal Entity Identifier (LEI)", "********************", "all", "20 letters or digits"),
+}
+
+
+def detail_on(policy: dict, key: str) -> bool:
+    return bool(((policy.get("details") or {}).get("enabled") or {}).get(key, True))
+
+
+def disabled_fields(policy: dict) -> set[str]:
+    """Form and document fields that are switched off: the run behaves as if the vendor never supplied them."""
+    return {f for k, (_, _, fields) in DETAIL_KEYS.items() if not detail_on(policy, k) for f in fields}
+
+
+def custom_details(policy: dict) -> list[dict]:
+    """Details you added: [{key, label, format, required, applies}]. The typed value is stored under x_<key>."""
+    return list((policy.get("details") or {}).get("custom") or [])
+
+
+def applies_to(d: dict, country: str) -> bool:
+    c = (country or "").upper()
+    return d.get("applies", "all") == "all" or (d["applies"] == "india" and c == "IN") or (d["applies"] == "foreign" and bool(c) and c != "IN")
+
+
+def format_regex(fmt: str):
+    """A simple format to a regex: A = a letter, 9 = a digit, * = a letter or digit, anything else is literal. Spaces and dashes are ignored on both sides."""
+    out = []
+    for ch in re.sub(r"[\s\-]", "", fmt.upper()):
+        out.append({"A": "[A-Z]", "9": r"\d", "*": "[A-Z0-9]"}.get(ch, re.escape(ch)))
+    return re.compile("".join(out))
+
+
+def format_ok(fmt: str, value: str) -> bool:
+    return bool(format_regex(fmt).fullmatch(re.sub(r"[\s\-]", "", (value or "").upper())))
+
+
+def details_from_form(form, errors: list[str], current: dict | None = None) -> dict:
+    """The identity-details section of the Settings form."""
+    if form.get("details_form") != "1":
+        return deepcopy(current) if current else {"enabled": {}, "custom": []}
+    enabled = {k: form.get(f"detail__{k}") == "on" for k in DETAIL_KEYS}
+    labels, formats, required, applies = (_getlist(form, f"cdetail_{x}") for x in ("label", "format", "required", "applies"))
+    taken = {"legal_name", "gstin", "pan", "cin", "tax_id", "bank_account", "ifsc", "iban", "swift", "country", "account_holder", "routing_code"}
+    custom: list[dict] = []
+    for i, label in enumerate(labels):
+        label = label.strip()[:60]
+        if not label:
+            continue
+        fmt = (formats[i] if i < len(formats) else "").strip().upper()[:40]
+        if not re.sub(r"[\s\-]", "", fmt) or not re.search(r"[A9*]", fmt):
+            errors.append(f"{label}: give a format using A (letter), 9 (digit) or * (letter or digit), for example AAAA99999A. Left out.")
+            continue
+        if len(custom) >= MAX_CUSTOM_DOCS:
+            errors.append(f"At most {MAX_CUSTOM_DOCS} extra details. {label} left out.")
+            continue
+        key = _slug(label, taken)
+        taken.add(key)
+        custom.append({"key": key, "label": label, "format": fmt, "required": (required[i] if i < len(required) else "yes") == "yes",
+                       "applies": applies[i] if i < len(applies) and applies[i] in APPLIES else "all"})
+    return {"enabled": enabled, "custom": custom}
 
 # built-in checklist documents: key -> (label, when it applies)
 BUILTIN_DOCS = {
@@ -135,6 +211,7 @@ def policy_from_form(form, current: dict) -> tuple[dict, list[str]]:
     if bad:
         errors.append("Blocklist entries not recognised and left out: " + ", ".join(bad[:5]) + ("…" if len(bad) > 5 else "") + ".")
     new["documents"] = documents_from_form(form, errors, current.get("documents"))
+    new["details"] = details_from_form(form, errors, current.get("details"))
     new["blocklist"] = {"pans": [p for p in dict.fromkeys(pans) if _PAN.match(p)], "accounts": [a for a in dict.fromkeys(accounts) if re.fullmatch(r"\d{6,20}", a)]}
     return new, errors
 

@@ -33,9 +33,9 @@ EXAMPLES = {
                          "fields": {**ZOHO, "bank_account": "026291800001191", "bank_account_confirm": "026291800001191", "ifsc": "YESB0000262"}},
 }
 KAVERI = {"country": "IN", "legal_name": "Kaveri Precision Components Private Limited", "gstin": "27AAACK5521D1ZY", "pan": "AAACK5521D",
-          "cin": "U29253MH2014PTC152873", "bank_account": "50200045678912", "bank_account_confirm": "50200045678912", "ifsc": "HDFC0000001",
+          "cin": "U29253MH2014PTC152873", "x_tan": "PNEK12345E", "bank_account": "50200045678912", "bank_account_confirm": "50200045678912", "ifsc": "HDFC0000001",
           "contact_name": "Ravi Kulkarni", "contact_email": "ap@kaveri.example", "contact_phone": "9822000123", **COMMERCIAL}
-MEHTA = {"country": "IN", "legal_name": "Mehta and Sons Traders", "gstin": "24AAAPM4521K1ZY", "pan": "AAAPM4521K", "udyam_number": "UDYAM-GJ-01-0045678",
+MEHTA = {"country": "IN", "legal_name": "Mehta and Sons Traders", "gstin": "24AAAPM4521K1ZY", "pan": "AAAPM4521K", "udyam_number": "UDYAM-GJ-01-0045678", "x_tan": "AHMP12345K",
          "bank_account": "30110045671234", "bank_account_confirm": "30110045671234", "ifsc": "HDFC0000001",
          "contact_name": "Rajesh Mehta", "contact_email": "accounts@mehta-traders.example", "contact_phone": "9898000123", **COMMERCIAL}
 EXAMPLES["kaveri_clean"] = {

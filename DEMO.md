@@ -61,6 +61,8 @@ Open the dashboard. Say: "The dashboard keeps history across runs: status, outco
 - **Zoho duplicate** (run after Zoho): "Existing vendor found", no new record or code.
 - **TCS wrong GSTIN**: tax-collector GSTIN flagged instantly, no credit spent.
 - **Settings → Verification policy**: change the name-match threshold, the minimum reading confidence or accepted evidence live.
+- **Identity details** (Settings): switch off GSTIN, PAN, CIN or bank details, or add your own (for example **TAN**, with a simple format like `AAAA99999A`). The new field appears on the form with a live format hint and is required or
+  optional as you set it. Load the Kaveri happy test case: a valid TAN gives a "Format ok" row; a wrong one asks the vendor for a valid TAN. Folder `14_custom_identity_details` has the steps.
 - **Compliance documents** (Settings): add a document your company needs (for example **Aadhaar card** from the template) and switch off one you don't (for example Udyam). Then **Load a sample → Separate files (Mehta)**:
   the new document shows **Missing** and the vendor email asks for it; **Mehta with Aadhaar** shows it **Found**. Folder `13_custom_compliance_document` has the files and steps.
 

@@ -116,6 +116,56 @@
       </div>
 
       <div class="py-5">
+        <input type="hidden" name="details_form" value="1">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Identity details</p>
+        <p class="mt-1 text-xs text-slate-500">The details collected from every vendor and checked. Switch off what your company does not use, and add what it does. A switched-off detail disappears from the submission form and is ignored everywhere, including in documents.</p>
+        <div class="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {% for key, (label, effect, fields) in detail_keys.items() %}
+            <label class="flex cursor-pointer items-center justify-between gap-6 px-4 py-3">
+              <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">{{ label }}</span><span class="block text-xs text-slate-500">{{ effect }}</span></span>
+              <input type="checkbox" name="detail__{{ key }}" class="peer sr-only" {{ 'checked' if detail_on[key] }}><span class="switch" aria-hidden="true"></span>
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="mt-5" x-data='{ items: {{ custom_detail_items|tojson }}, presets: {{ detail_presets|tojson }}, pick: "",
+              add() { const p = this.presets[this.pick]; this.items.push(p ? { label: p.label, format: p.format, required: "yes", applies: p.applies } : { label: "", format: "", required: "yes", applies: "all" }); this.pick = ""; },
+              remove(i) { this.items.splice(i, 1); } }'>
+          <p class="text-sm font-medium text-slate-900">Extra details</p>
+          <p class="text-xs text-slate-500">Each one becomes a field on the submission form, is format-checked, and is asked of the vendor when required and missing. Format: <span class="mono">A</span> = a letter, <span class="mono">9</span> = a digit, <span class="mono">*</span> = a letter or digit (for example <span class="mono">AAAA99999A</span>).</p>
+          <div class="mt-3 space-y-3" id="custom-details">
+            <template x-for="(d, i) in items" :key="i">
+              <div class="rounded-xl border border-slate-200 p-4">
+                <div class="flex items-start gap-3">
+                  <div class="grid flex-1 gap-3 sm:grid-cols-2">
+                    <label class="block text-xs font-medium text-slate-600">Name
+                      <input name="cdetail_label" x-model="d.label" class="mt-1 block w-full rounded-lg border-slate-300 text-sm" placeholder="e.g. TAN"></label>
+                    <label class="block text-xs font-medium text-slate-600">Format
+                      <input name="cdetail_format" x-model="d.format" class="mono mt-1 block w-full rounded-lg border-slate-300 text-sm" placeholder="AAAA99999A"></label>
+                    <label class="block text-xs font-medium text-slate-600">Required?
+                      <select name="cdetail_required" x-model="d.required" class="mt-1 block w-full rounded-lg border-slate-300 text-sm"><option value="yes">Required</option><option value="no">Optional</option></select></label>
+                    <label class="block text-xs font-medium text-slate-600">Applies to
+                      <select name="cdetail_applies" x-model="d.applies" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                        {% for k, l in doc_applies.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+                  </div>
+                  <button type="button" @click="remove(i)" class="mt-5 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Remove this detail">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3"/></svg></button>
+                </div>
+              </div>
+            </template>
+            <p x-show="!items.length" class="rounded-xl border border-dashed border-slate-300 px-4 py-5 text-center text-sm text-slate-500">No extra details yet.</p>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <select x-model="pick" class="rounded-lg border-slate-300 text-sm" aria-label="Start from a detail template">
+              <option value="">Blank detail</option>
+              {% for k, d in detail_presets.items() %}<option value="{{ k }}">{{ d.label }}</option>{% endfor %}
+            </select>
+            <button type="button" @click="add()" class="btn btn-ghost" id="add-detail">Add detail</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="py-5">
         <input type="hidden" name="docs_form" value="1">
         <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Compliance documents</p>
         <p class="mt-1 text-xs text-slate-500">The documents every vendor is asked for. Switch off what your company does not need, and add what it does. The full case shows each one as found or missing, and the vendor email asks for what is missing.</p>

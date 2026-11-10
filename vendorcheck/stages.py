@@ -16,7 +16,7 @@ from . import validators as v
 from .adapters.base import AdapterResult
 from .models import Case, Run, Version
 from . import checklist as ck
-from .policy import custom_docs, doc_enabled
+from .policy import applies_to, custom_details, custom_docs, detail_on, disabled_fields, doc_enabled, format_ok
 from .matrix import DOC_LABEL, Source as MSource, apply_coverage, build as build_matrix, unit_of
 from .reader import CRITICAL, RECOGNISED, ReaderUnavailable, imagey_pages
 from .rules import FLAG, INFO, NOTE, PASS, REJECT, SKIP, WAIT, Check, vtext
@@ -296,6 +296,8 @@ def stage_read(ctx, st: RunState) -> str:
                                "snippet": new["snippet"] or prev["snippet"], "doc_type": page_type[new["page"]]["doc_type"],
                                "effective": next((x["value"] for x in doc["fields"] if x["field"] == "effective_date"), "")})
 
+    for k in disabled_fields(ctx.policy):              # details switched off in Settings are ignored wherever they appear
+        cands.pop(k, None)
     # ---- bank documents in somebody else's name (e.g. pages 9-10 of a form template) are never the vendor's ----
     thr = ctx.policy["name_match_threshold"]
     vendor_name = typed.get("legal_name") or next((c["value"] for c in cands.get("legal_name", []) if c["doc_type"] == FORM_DOC), "")
@@ -457,12 +459,16 @@ def stage_validate(ctx, st: RunState) -> str:
     if not name and "legal_name" not in unc: missing.append("your legal business name"); mfields += ["legal_name"]
     if not country: missing.append("the country you are based in"); mfields += ["country"]
     if india:
-        if not (gstin or pan or "gstin" in unc or "pan" in unc): missing.append("your GSTIN or PAN"); mfields += ["gstin", "pan"]
-        if not ((acct or "bank_account" in unc) and (ifsc or "ifsc" in unc)): missing.append("your bank account number and IFSC"); mfields += ["bank_account", "bank_account_confirm", "ifsc"]
+        if (detail_on(pol, "gstin") or detail_on(pol, "pan")) and not (gstin or pan or "gstin" in unc or "pan" in unc): missing.append("your GSTIN or PAN"); mfields += ["gstin", "pan"]
+        if detail_on(pol, "bank") and not ((acct or "bank_account" in unc) and (ifsc or "ifsc" in unc)): missing.append("your bank account number and IFSC"); mfields += ["bank_account", "bank_account_confirm", "ifsc"]
     elif country:
         if not (tax_id or given["GSTIN"] or given["PAN"] or given["CIN"] or "tax_id" in unc): missing.append(f"your tax ID ({cn.EXAMPLE.get(country, 'tax registration number')})"); mfields += ["tax_id"]
-        if not (acct or "bank_account" in unc or "iban" in unc): missing.append("your bank account (the IBAN, if your country uses one)"); mfields += ["iban", "bank_account", "routing_code", "swift"]
+        if detail_on(pol, "bank") and not (acct or "bank_account" in unc or "iban" in unc): missing.append("your bank account (the IBAN, if your country uses one)"); mfields += ["iban", "bank_account", "routing_code", "swift"]
     if not (p.get("contact_name") and (p.get("contact_email") or p.get("contact_phone"))): missing.append("a contact name with an email or phone"); mfields += ["contact_name", "contact_email", "contact_phone"]
+    cdet = [d for d in custom_details(pol) if applies_to(d, country)]                  # details added in Settings
+    for d in cdet:
+        if d["required"] and not (st.typed.get("x_" + d["key"]) or "").strip():
+            missing.append(f"your {d['label']}"); mfields.append("x_" + d["key"])
     if missing:
         st.add(Check("R03", FLAG, owner="vendor", kind="vendor", mode="declared", source="Submission", expected="Legal name, country, tax ID, bank details, contact",
                      found="Missing: " + "; ".join(missing), title="send the missing details", reason="Required details are missing: " + ", ".join(missing) + ".",
@@ -471,6 +477,18 @@ def stage_validate(ctx, st: RunState) -> str:
         st.add(Check("R03", PASS, mode="declared", source="Submission", expected="All required details", found="All present",
                      reason="Legal name, country, tax ID, bank details and a contact are present."))
 
+    for d in cdet:                                                                      # format check of each detail you added
+        val, key = (st.typed.get("x_" + d["key"]) or "").strip(), "x_" + d["key"]
+        if not val:
+            continue
+        if format_ok(d["format"], val):
+            st.add(Check("X3", PASS, key=f"X3:{d['key']}", name=f"{d['label']} format", mode="computed", source="Offline check", expected=f"Format {d['format']}", found=val,
+                         reason=f"The {d['label']} is in the expected format."))
+        else:
+            st.add(Check("X3", FLAG, key=f"X3:{d['key']}", name=f"{d['label']} format", owner="vendor", kind="vendor", mode="computed", source="Offline check",
+                         expected=f"Format {d['format']} (A letter, 9 digit, * either)", found=v.mask(val), title=f"send a valid {d['label']}",
+                         reason=f"The {d['label']} is not in the expected format.", vendor_fields=[key],
+                         vendor_text=f"The {d['label']} you sent ({v.mask(val)}) is not in the expected format. Please check it and send the correct one."))
     # R23: does each tax ID belong to the country the vendor claims? Shape and checksum only; never a register lookup.
     checked, bad23 = [], None
     for label, val in given.items():
@@ -1248,6 +1266,13 @@ def stage_reconcile(ctx, st: RunState) -> str:
             {"label": "SWIFT / routing", "declared": p.get("swift") or p.get("routing_code", ""), "document": doc("swift") or doc("routing_code"), "government": "", "result": ""},
             {"label": "Account holder", "declared": p.get("account_holder", ""), "document": doc("account_holder"), "government": "", "result": holder_res},
         ]
+    hidden = {lbl for lbl, k in {"PAN": "pan", "GSTIN": "gstin", "State": "gstin", "CIN": "cin", "Account holder": "bank", "IFSC": "bank",
+                                 "Bank account / IFSC": "bank", "SWIFT / routing": "bank"}.items() if not detail_on(ctx.policy, k)}
+    st.table = [r for r in st.table if r["label"] not in hidden]            # a detail switched off in Settings has no row
+    for d in custom_details(ctx.policy):
+        val = (st.typed.get("x_" + d["key"]) or "").strip()
+        if val and applies_to(d, st.country):
+            st.table.append({"label": d["label"], "declared": val, "document": "", "government": "", "result": "format ok" if format_ok(d["format"], val) else "needs review"})
     r12 = next((c for c in st.checks["reconcile"] if c.rule == "R12"), None)
     return {"match": "Names agree", "explained": "Name difference explained by evidence", "mismatch": "Name difference needs review", "needs review": "Rename needs confirmation"}.get(
         result_of.get("legal_name", ""), (r12.reason if r12 and r12.result == SKIP else "Nothing to reconcile yet"))

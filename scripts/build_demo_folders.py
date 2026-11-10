@@ -62,6 +62,7 @@ def main():
     copy("lakeview_us_pack.pdf", edge / "08_us_vendor_with_documents")
     copy("rheinland_eu_pack.pdf", edge / "09_german_vendor_with_documents")
     (edge / "10_typed_only_no_documents").mkdir(parents=True, exist_ok=True)
+    (edge / "14_custom_identity_details").mkdir(parents=True, exist_ok=True)
     for f in ("mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "mehta_aadhaar_specimen.pdf"):
         copy(f, edge / "13_custom_compliance_document")
     copy("rmc1_munitions_form_filled.pdf", edge / "11_bank_account_name_matches")
@@ -162,6 +163,8 @@ EDGE_INDEX = """
 | `09_german_vendor_with_documents` | German company, VAT certificate, IBAN | VAT shape and IBAN checked; France IBAN for a German company is flagged |
 | `10_typed_only_no_documents` | Problems that need no files | See its README (wrong GSTIN type, look-alike, duplicate vendor, bank change, wrong country ID) |
 | `11_bank_account_name_matches` | The name on the bank account is the vendor's own (Munitions India Limited) | Holder agrees across the typed form, the bank form and the legal name; the unit account counts as the company's |
+| `13_custom_compliance_document` | A document your company needs (Aadhaar) is added in Settings; one it does not (Udyam) is switched off | Shown as Found or Missing in the full case, requested in the vendor email |
+| `14_custom_identity_details` | An identity detail is added (TAN) and one is switched off (CIN) | New field on the form, format-checked live and on submit; the switched-off one disappears everywhere |
 | `12_bank_account_name_differs` | The typed account holder is a person, the bank document says the company | Holder flagged in the consistency table; finance reviews |
 """
 
@@ -288,6 +291,22 @@ the vendor says Germany, so it is flagged.
 is a unit account of the company, so it matches the legal name. The case still waits on the vendor for the documents not attached (PAN card, GST certificate, address proof, incorporation certificate).
 
 **What else can go differently:** an account in a director's name; a different company's name (the pages are shown as another party's and not used); a joint account.
+""",
+"14_custom_identity_details": """
+# Identity details you switch off or add yourself (TAN, CIN, bank)
+
+No files needed: this is about the typed details.
+
+**How to run:**
+1. **Settings → Verification policy → Identity details.** Choose the **TAN** template and press **Add detail** (format `AAAA99999A`: A = letter, 9 = digit, * = either). Switch **CIN** off. **Save policy.**
+2. **New submission:** a **TAN** field now appears under *Additional details* with a live hint, and the **CIN** field is gone.
+3. **Load a sample → Kaveri: happy test case (all documents)** (it carries a valid TAN) → Submit. The evidence summary has a **TAN** row with *Format ok* and no CIN row.
+4. Change the TAN to something wrong (for example `BAD1`) and submit: the case asks the vendor for **a valid TAN** and the email says so. Leave it empty and submit: it is asked as a required detail.
+
+**Switching a built-in detail off** (GSTIN, PAN, CIN, bank) removes the field from the form and makes the run ignore it everywhere, including in documents: no format check, no registry lookup, no verify link, no required-detail flag. Switching **bank** off also means Finance
+is not asked to confirm an account.
+
+**What else can go differently:** a detail marked Optional can be left blank; one set to Indian vendors only is not asked of a foreign vendor; two details with the same name get different keys.
 """,
 "13_custom_compliance_document": """
 # A compliance document you add yourself (Aadhaar)

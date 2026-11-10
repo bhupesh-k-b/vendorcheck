@@ -129,7 +129,9 @@ def create_app(ctx=None) -> FastAPI:
                 pre = {k: str(val) for k, val in json.loads(prefill).items() if k in FORM_FIELDS}
             except ValueError:
                 pre = {}
-        return render(request, "new.html", examples=EXAMPLES, examples_json=json.dumps(EXAMPLES).replace("</", "<\\/"), prefill_json=json.dumps(pre), countries=cn.COUNTRIES)
+        pol = C(request).policy
+        return render(request, "new.html", examples=EXAMPLES, examples_json=json.dumps(EXAMPLES).replace("</", "<\\/"), prefill_json=json.dumps(pre), countries=cn.COUNTRIES,
+                      details_on={k: policy_mod.detail_on(pol, k) for k in policy_mod.DETAIL_KEYS}, custom_details=policy_mod.custom_details(pol))
 
     # ---------------- test bench ----------------
     @app.get("/bench", response_class=HTMLResponse)
@@ -151,7 +153,7 @@ def create_app(ctx=None) -> FastAPI:
     @app.post("/submit")
     async def submit(request: Request):
         form = await request.form()
-        typed = {k: (form.get(k) or "").strip() for k in FORM_FIELDS}
+        typed = {k: (form.get(k) or "").strip() for k in FORM_FIELDS + ["x_" + d["key"] for d in policy_mod.custom_details(C(request).policy)]}
         typed["msme"] = form.get("msme") == "yes"
         files = []
         for up in form.getlist("files"):
@@ -359,6 +361,9 @@ def create_app(ctx=None) -> FastAPI:
         return RedirectResponse(f"/cases/{case_id}?flash=Saved as assisted evidence. A second person must approve it before it counts.", 303)
 
     # ---------------- vendor portal ----------------
+    def field_labels(ctx):
+        return {**FIELD_LABEL, **{"x_" + d["key"]: d["label"] for d in policy_mod.custom_details(ctx.policy)}}
+
     FIELD_LABEL = {"country": "Country the business is based in", "tax_id": "Tax ID (EIN, VAT number…)", "iban": "IBAN", "swift": "SWIFT/BIC",
                    "routing_code": "Routing number (ABA) or sort code", "legal_name": "Legal business name", "gstin": "GSTIN", "pan": "PAN", "cin": "CIN", "bank_account": "Bank account number",
                    "bank_account_confirm": "Confirm bank account number", "ifsc": "IFSC", "contact_name": "Contact name", "contact_email": "Contact email",
@@ -376,7 +381,7 @@ def create_app(ctx=None) -> FastAPI:
         # always carry every key: on an empty dict Jinja's msg['items'] would resolve to the dict's .items() method
         msg = {"items": [], "fields": [], "upload": False, "intro": "", **((case.decision or {}).get("message") or {})}
         rej = (case.decision or {}).get("rejected") or {}
-        return templates.TemplateResponse(request, "portal.html", {"case": case, "msg": msg, "labels": FIELD_LABEL, "sent": request.query_params.get("sent", ""),
+        return templates.TemplateResponse(request, "portal.html", {"case": case, "msg": msg, "labels": field_labels(C(request)), "sent": request.query_params.get("sent", ""),
                                                                     "status": case.status, "reapply": bool(rej.get("reapply"))})
 
     @app.post("/v/{token}")
@@ -385,7 +390,7 @@ def create_app(ctx=None) -> FastAPI:
         if not case:
             return HTMLResponse("This link is not valid.", 404)
         form = await request.form()
-        updates = {k: (form.get(k) or "").strip() for k in FIELD_LABEL if (form.get(k) or "").strip()}
+        updates = {k: (form.get(k) or "").strip() for k in field_labels(C(request)) if (form.get(k) or "").strip()}
         files = [store_bytes(await up.read(), up.filename) for up in form.getlist("files") if getattr(up, "filename", "") and allowed(up.filename)]
         if not updates and not files:
             return RedirectResponse(f"/v/{token}?sent=none", 303)
@@ -441,6 +446,9 @@ def create_app(ctx=None) -> FastAPI:
                       pol=ctx.policy, builtin_docs=policy_mod.BUILTIN_DOCS, doc_presets={k: {"label": l, "keywords": ", ".join(w), "applies": a} for k, (l, w, a) in policy_mod.DOC_PRESETS.items()},
                       doc_applies=policy_mod.APPLIES, doc_on={k: policy_mod.doc_enabled(ctx.policy, k) for k in policy_mod.BUILTIN_DOCS},
                       custom_items=[{"label": d["label"], "keywords": ", ".join(d["keywords"]), "need": d["need"], "applies": d["applies"]} for d in policy_mod.custom_docs(ctx.policy)],
+                      detail_keys=policy_mod.DETAIL_KEYS, detail_on={k: policy_mod.detail_on(ctx.policy, k) for k in policy_mod.DETAIL_KEYS},
+                      detail_presets={k: {"label": l, "format": f, "applies": a} for k, (l, f, a, h) in policy_mod.DETAIL_PRESETS.items()},
+                      custom_detail_items=[{"label": d["label"], "format": d["format"], "required": "yes" if d["required"] else "no", "applies": d["applies"]} for d in policy_mod.custom_details(ctx.policy)],
                       reqs=policy_mod.REQUIREMENTS, evidence_label=policy_mod.EVIDENCE_LABEL, doc_modes=policy_mod.DOCUMENT_MODES,
                       policy_changed=db.get_kv(ctx.engine, "policy_changed"),
                       ifsc=ifsc_adapter.release_label(), result=request.query_params.get("result", ""))

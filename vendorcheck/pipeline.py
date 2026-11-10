@@ -8,6 +8,7 @@ from datetime import date
 from sqlmodel import Session, select
 
 from . import master as vm
+from .policy import disabled_fields
 from . import messages
 from . import stages as S
 from .decide import decide
@@ -81,7 +82,7 @@ def load_state(ctx, run_id: int) -> S.RunState:
     with Session(ctx.engine, expire_on_commit=False) as s:
         run = s.get(Run, run_id)
         case, version = s.get(Case, run.case_id), s.get(Version, run.version_id)
-        return S.RunState(case=case, version=version, run=run, files=list(version.files), typed=dict(version.declared),
+        return S.RunState(case=case, version=version, run=run, files=list(version.files), typed={k: val for k, val in version.declared.items() if k not in disabled_fields(ctx.policy)},   # details switched off in Settings are ignored
                           assisted=load_assisted(s, case.id))
 
 

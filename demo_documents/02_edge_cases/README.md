@@ -13,4 +13,6 @@
 | `09_german_vendor_with_documents` | German company, VAT certificate, IBAN | VAT shape and IBAN checked; France IBAN for a German company is flagged |
 | `10_typed_only_no_documents` | Problems that need no files | See its README (wrong GSTIN type, look-alike, duplicate vendor, bank change, wrong country ID) |
 | `11_bank_account_name_matches` | The name on the bank account is the vendor's own (Munitions India Limited) | Holder agrees across the typed form, the bank form and the legal name; the unit account counts as the company's |
+| `13_custom_compliance_document` | A document your company needs (Aadhaar) is added in Settings; one it does not (Udyam) is switched off | Shown as Found or Missing in the full case, requested in the vendor email |
+| `14_custom_identity_details` | An identity detail is added (TAN) and one is switched off (CIN) | New field on the form, format-checked live and on submit; the switched-off one disappears everywhere |
 | `12_bank_account_name_differs` | The typed account holder is a person, the bank document says the company | Holder flagged in the consistency table; finance reviews |
