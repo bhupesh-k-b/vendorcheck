@@ -129,6 +129,17 @@ def classify(text: str) -> list[str]:
     return hits
 
 
+def custom_types(text: str, custom: list[dict]) -> list[str]:
+    """Keys of the documents you added (Settings) whose words appear on this page. Spaces are ignored on both sides, because text recognition drops them."""
+    flat = re.sub(r"\s+", "", (text or "").upper())
+    out = []
+    for d in custom or []:
+        hits = sum(1 for kw in d.get("keywords", []) if re.sub(r"\s+", "", kw.upper()) and re.sub(r"\s+", "", kw.upper()) in flat)
+        if hits >= max(1, int(d.get("need", 1))):
+            out.append(d["key"])
+    return out
+
+
 def identifiers(text: str) -> dict[str, list[str]]:
     """Every identifier-shaped token on the page, in reading order, de-duplicated."""
     up = _norm(text).upper()

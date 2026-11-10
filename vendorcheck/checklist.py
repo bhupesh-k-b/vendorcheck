@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from . import countries as cn
 from . import validators as v
+from .policy import custom_docs, doc_enabled
 
 DOCS = {
     "pan_card": ("PAN card", ["pan_card"], ("Income Tax: Verify Your PAN", "https://eportal.incometax.gov.in/iec/foservices/#/pre-login/verifyYourPAN")),
@@ -50,7 +51,7 @@ def found_pages(doc_map: list[dict]) -> dict[str, list[dict]]:
     return out
 
 
-def build(profile: dict, doc_map: list[dict]) -> list[Row]:
+def build(profile: dict, doc_map: list[dict], policy: dict | None = None) -> list[Row]:
     country = (profile.get("country") or "").upper()
     india = country == "IN"
     pages = found_pages(doc_map)
@@ -67,6 +68,7 @@ def build(profile: dict, doc_map: list[dict]) -> list[Row]:
         spec = [("tax_form", True, f"every vendor outside India ({cn.name_of(country)})"),
                 ("bank_document", True, "bank details must be backed by a bank letter in the vendor's name"),
                 ("incorporation", is_company_like(profile), "a company" if is_company_like(profile) else "not a company")]
+    spec = [(k, req, why) for k, req, why in spec if doc_enabled(policy or {}, k)]      # a document switched off in Settings is not asked for
     rows = []
     for key, required, why in spec:
         label, accepted, link = DOCS[key]
@@ -86,6 +88,12 @@ def build(profile: dict, doc_map: list[dict]) -> list[Row]:
         if not required and state == "missing":
             state = "not_required"
         rows.append(Row(key, label, required, why, state, where, link, [(h["file"], h["page"]) for h in own]))
+    for d in custom_docs(policy or {}):                                                # documents added in Settings
+        if d["applies"] == "india" and not india or d["applies"] == "foreign" and (india or not country):
+            continue
+        hits = pages.get(d["key"], [])
+        where = f"{hits[0]['file']} p.{hits[0]['page']}" + (f" (+{len(hits) - 1} more)" if len(hits) > 1 else "") if hits else ""
+        rows.append(Row(d["key"], d["label"], True, "required by your compliance policy", "found" if hits else "missing", where, None, [(h["file"], h["page"]) for h in hits]))
     return rows
 
 

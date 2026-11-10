@@ -115,7 +115,7 @@ class ReaderUnavailable(Exception):
 class Reader(Protocol):
     configured: bool
 
-    def read_document(self, f: dict, progress: Callable[[str], None] | None = None, confidence: float | None = None) -> dict: ...
+    def read_document(self, f: dict, progress: Callable[[str], None] | None = None, confidence: float | None = None, custom: list | None = None) -> dict: ...
     def read_critical(self, f: dict, progress: Callable[[str], None] | None = None) -> dict[str, str]: ...
     def read_screenshot(self, f: dict, source: str, progress: Callable[[str], None] | None = None) -> dict[str, str]: ...
 
@@ -311,7 +311,7 @@ class GeminiReader:
         return {"pages": [p.model_dump() for p in out.pages if p.page in pages],
                 "fields": [{**x.model_dump(), "value": clean_value(x.value), "snippet": clean_value(x.snippet)[:120]} for x in out.fields if x.page in pages]}
 
-    def read_document(self, f: dict, progress=None, confidence=None) -> dict:
+    def read_document(self, f: dict, progress=None, confidence=None, custom=None) -> dict:
         if (hit := self._cached(f, "doc")):
             return hit
         out, via = None, "gemini-vision"
@@ -523,8 +523,11 @@ class HybridReader:
             s.merge(ExtractionCache(key=f"{f['sha256']}:{kind}", payload=payload, created_at=utcnow()))
             s.commit()
 
-    def read_document(self, f: dict, progress=None, confidence=None) -> dict:
-        if (hit := self._cached(f, "doc-local2")):
+    def read_document(self, f: dict, progress=None, confidence=None, custom=None) -> dict:
+        import hashlib
+        import json as _json
+        kind = "doc-local2" + (":" + hashlib.sha1(_json.dumps(custom, sort_keys=True).encode()).hexdigest()[:8] if custom else "")   # new documents in Settings => read again once
+        if (hit := self._cached(f, kind)):
             return hit
         from . import extract
         texts = ocr_pages(f)
@@ -537,7 +540,7 @@ class HybridReader:
             strong = [t for t in r["types"] if t not in extract.WEAK_TYPES]
             if not strong and prev_form and (r["types"] or extract.FORM_MARKERS.search(text)):
                 r = extract.read_page(text, force=["vendor_registration_form"])      # continuation of a multi-page form
-            types = r["types"]
+            types = list(r["types"]) + [k for k in extract.custom_types(text, custom) if k not in r["types"]]     # documents you added in Settings
             prev_form = "vendor_registration_form" in types
             if types:
                 for dt in types:
@@ -611,7 +614,7 @@ class HybridReader:
             if 1 <= p["page"] <= len(scores):
                 p["confidence"] = round(float(scores[p["page"] - 1]), 3)
         payload = {"via": via, "pages": pages, "hints": hints, "fields": [{**x, "value": clean_value(x["value"])} for x in fields]}
-        self._store(f, "doc-local2", payload)
+        self._store(f, kind, payload)
         return payload
 
     def read_critical(self, f: dict, progress=None) -> dict:
@@ -668,7 +671,7 @@ class NullReader:
     name = "none"
     configured = False
 
-    def read_document(self, f, progress=None, confidence=None): raise ReaderUnavailable("GEMINI_API_KEY is not set, so documents cannot be read.")
+    def read_document(self, f, progress=None, confidence=None, custom=None): raise ReaderUnavailable("GEMINI_API_KEY is not set, so documents cannot be read.")
     def read_critical(self, f, progress=None): raise ReaderUnavailable("GEMINI_API_KEY is not set.")
     def read_screenshot(self, f, source, progress=None): raise ReaderUnavailable("GEMINI_API_KEY is not set.")
 
@@ -681,7 +684,7 @@ class StaticReader:
     def __init__(self, docs: dict[str, dict], critical: dict[str, dict] | None = None, screenshots: dict[str, dict] | None = None):
         self.docs, self.critical, self.screenshots, self.calls = docs, critical or {}, screenshots or {}, []
 
-    def read_document(self, f, progress=None, confidence=None):
+    def read_document(self, f, progress=None, confidence=None, custom=None):
         self.calls.append(("doc", f["name"]))
         return self.docs[f["name"]]
 

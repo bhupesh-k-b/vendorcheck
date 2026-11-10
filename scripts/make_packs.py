@@ -117,6 +117,17 @@ def build_munitions(rmc1: Path):
         "account": "40436892598", "ifsc": "SBIN0003228", "gstin": "23AAOCM8781H2ZX", "pan": "AAOCM8781H"}))
 
 
+def aadhaar_specimen(name: str, dob: str, masked: str) -> Image.Image:
+    """A SPECIMEN personal-ID page for a FICTIONAL person, with the number already masked. It exists so a custom compliance document can be demonstrated."""
+    return text_doc("AADHAAR", "Specimen personal ID for demonstration (fictional person, masked number)",
+                    [("Name", name), ("Date of Birth", dob), ("Aadhaar Number", masked), ("Address", "Ahmedabad, Gujarat")],
+                    "Specimen for demonstration. Not a real ID.")
+
+
+def build_aadhaar():
+    to_pdf([aadhaar_specimen("RAJESH MEHTA", "14/06/1979", "XXXX XXXX 9012")], OUT / "mehta_aadhaar_specimen.pdf")
+
+
 def build_happy_pack():
     """The happy-path pack: every required document for a company, all consistent. Cut from the complete Kaveri pack: the filled registration form
     (without the template's sample bank pages, which are another company's), PAN card, GST certificate, cancelled cheque, certificate of incorporation, address proof."""

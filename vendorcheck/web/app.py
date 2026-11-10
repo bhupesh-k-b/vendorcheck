@@ -438,7 +438,10 @@ def create_app(ctx=None) -> FastAPI:
         cfg = {"GEMINI_API_KEY": bool(config.groq_key() or config.gemini_key() or config.openrouter_key()), "GEMINI_MODEL": config.gemini_model(), "GSTINAPI_KEY": bool(config.gstin_key()),
                "CASHFREE": bool(config.cashfree_id() and config.cashfree_secret()), "CASHFREE_ENV": config.cashfree_env()}
         return render(request, "settings.html", cfg=cfg, outage=db.get_kv(ctx.engine, "simulate_gst_outage") == "1", credits=db.get_kv(ctx.engine, "gst_credits_remaining"),
-                      pol=ctx.policy, reqs=policy_mod.REQUIREMENTS, evidence_label=policy_mod.EVIDENCE_LABEL, doc_modes=policy_mod.DOCUMENT_MODES,
+                      pol=ctx.policy, builtin_docs=policy_mod.BUILTIN_DOCS, doc_presets={k: {"label": l, "keywords": ", ".join(w), "applies": a} for k, (l, w, a) in policy_mod.DOC_PRESETS.items()},
+                      doc_applies=policy_mod.APPLIES, doc_on={k: policy_mod.doc_enabled(ctx.policy, k) for k in policy_mod.BUILTIN_DOCS},
+                      custom_items=[{"label": d["label"], "keywords": ", ".join(d["keywords"]), "need": d["need"], "applies": d["applies"]} for d in policy_mod.custom_docs(ctx.policy)],
+                      reqs=policy_mod.REQUIREMENTS, evidence_label=policy_mod.EVIDENCE_LABEL, doc_modes=policy_mod.DOCUMENT_MODES,
                       policy_changed=db.get_kv(ctx.engine, "policy_changed"),
                       ifsc=ifsc_adapter.release_label(), result=request.query_params.get("result", ""))
 

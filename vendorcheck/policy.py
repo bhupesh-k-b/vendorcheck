@@ -27,7 +27,40 @@ DEFAULTS = {
     "require_documents": "if_uploaded",        # always | if_uploaded | off: when the required-documents checklist blocks
     "require_commercial_setup": True,           # R27/R28: categorisation and payment terms must be set before approval
     "blocklist": {"pans": [], "accounts": []},
+    # Compliance documents: which built-in documents the checklist asks for (a switched-off one is not asked for), plus documents you add yourself.
+    "documents": {"enabled": {}, "custom": []},
 }
+
+# built-in checklist documents: key -> (label, when it applies)
+BUILTIN_DOCS = {
+    "pan_card": ("PAN card", "Every Indian vendor"),
+    "gst_certificate": ("GST registration certificate", "When a GSTIN is given"),
+    "bank_document": ("Cancelled cheque or bank letter", "Every vendor"),
+    "address_proof": ("Address proof", "When a GSTIN is given"),
+    "udyam_certificate": ("Udyam certificate (MSME)", "When MSME status is claimed. Switching it off also skips every MSME check"),
+    "incorporation": ("Certificate of incorporation", "Companies and LLPs"),
+    "tax_form": ("Tax registration document", "Vendors outside India"),
+}
+# quick-add templates for custom documents: key -> (label, keywords that appear on the document, applies to)
+DOC_PRESETS = {
+    "aadhaar_card": ("Aadhaar card", ["AADHAAR", "UNIQUE IDENTIFICATION AUTHORITY"], "india"),
+    "iso_certificate": ("ISO certificate", ["ISO 9001", "ISO 14001", "ISO 27001", "ISO 45001"], "all"),
+    "fssai_licence": ("FSSAI licence", ["FSSAI", "FOOD SAFETY AND STANDARDS AUTHORITY"], "india"),
+    "shop_establishment": ("Shop and Establishment licence", ["SHOPS AND ESTABLISHMENT", "SHOP & ESTABLISHMENT"], "india"),
+    "iec": ("Import Export Code (IEC)", ["IMPORTER EXPORTER CODE", "IMPORT EXPORT CODE", "DGFT"], "all"),
+    "trade_licence": ("Trade licence", ["TRADE LICENCE", "TRADE LICENSE"], "all"),
+}
+APPLIES = {"all": "Every vendor", "india": "Indian vendors", "foreign": "Vendors outside India"}
+MAX_CUSTOM_DOCS = 12
+
+
+def doc_enabled(policy: dict, key: str) -> bool:
+    return bool(((policy.get("documents") or {}).get("enabled") or {}).get(key, True))
+
+
+def custom_docs(policy: dict) -> list[dict]:
+    """The documents you added: [{key, label, keywords, need, applies}]."""
+    return list((policy.get("documents") or {}).get("custom") or [])
 
 
 def load_policy(path: Path | None = None) -> dict:
@@ -101,8 +134,54 @@ def policy_from_form(form, current: dict) -> tuple[dict, list[str]]:
     bad = [p for p in pans if not _PAN.match(p)] + [a for a in accounts if not re.fullmatch(r"\d{6,20}", a)]
     if bad:
         errors.append("Blocklist entries not recognised and left out: " + ", ".join(bad[:5]) + ("…" if len(bad) > 5 else "") + ".")
+    new["documents"] = documents_from_form(form, errors, current.get("documents"))
     new["blocklist"] = {"pans": [p for p in dict.fromkeys(pans) if _PAN.match(p)], "accounts": [a for a in dict.fromkeys(accounts) if re.fullmatch(r"\d{6,20}", a)]}
     return new, errors
+
+
+def _getlist(form, key: str) -> list[str]:
+    if hasattr(form, "getlist"):
+        return [str(x) for x in form.getlist(key)]
+    val = form.get(key, [])
+    return [str(x) for x in (val if isinstance(val, list) else [val])]
+
+
+def _slug(label: str, taken: set[str]) -> str:
+    base = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") or "document"
+    key, n = base, 2
+    while key in taken:
+        key, n = f"{base}_{n}", n + 1
+    return key
+
+
+def documents_from_form(form, errors: list[str], current: dict | None = None) -> dict:
+    """The compliance-document section of the Settings form: one switch per built-in document, and any number of documents you added."""
+    if form.get("docs_form") != "1":                      # this section was not on the submitted form: keep what is set
+        return deepcopy(current) if current else {"enabled": {}, "custom": []}
+    enabled = {k: form.get(f"doc__{k}") == "on" for k in BUILTIN_DOCS}
+    labels, words, needs, applies = (_getlist(form, f"custom_{x}") for x in ("label", "keywords", "need", "applies"))
+    taken = set(BUILTIN_DOCS) | {"other", "vendor_registration_form", "stock_exchange_filing", "tax_filing_document", "other_certificate", "bank_details_form"}
+    custom: list[dict] = []
+    for i, label in enumerate(labels):
+        label = label.strip()[:60]
+        if not label:
+            continue
+        kws = [w.strip().upper() for w in re.split(r"[,\n]+", words[i] if i < len(words) else "") if w.strip()]
+        if not kws:
+            errors.append(f"{label}: add at least one word that appears on the document. Left out.")
+            continue
+        if len(custom) >= MAX_CUSTOM_DOCS:
+            errors.append(f"At most {MAX_CUSTOM_DOCS} extra documents. {label} left out.")
+            continue
+        try:
+            need = max(1, min(int(needs[i]) if i < len(needs) else 1, len(kws), 5))
+        except ValueError:
+            need = 1
+        scope = applies[i] if i < len(applies) and applies[i] in APPLIES else "all"
+        key = _slug(label, taken)
+        taken.add(key)
+        custom.append({"key": key, "label": label, "keywords": kws[:12], "need": need, "applies": scope})
+    return {"enabled": enabled, "custom": custom}
 
 
 def save_policy(policy: dict, path: Path | None = None) -> None:

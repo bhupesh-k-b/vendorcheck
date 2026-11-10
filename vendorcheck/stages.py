@@ -16,6 +16,7 @@ from . import validators as v
 from .adapters.base import AdapterResult
 from .models import Case, Run, Version
 from . import checklist as ck
+from .policy import custom_docs, doc_enabled
 from .matrix import DOC_LABEL, Source as MSource, apply_coverage, build as build_matrix, unit_of
 from .reader import CRITICAL, RECOGNISED, ReaderUnavailable, imagey_pages
 from .rules import FLAG, INFO, NOTE, PASS, REJECT, SKIP, WAIT, Check, vtext
@@ -220,6 +221,8 @@ def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0) ->
 def stage_read(ctx, st: RunState) -> str:
     typed = st.typed
     floor = ctx.policy.get("read_confidence", 80) / 100      # the reading-confidence minimum (Settings)
+    custom = custom_docs(ctx.policy)                          # documents added in Settings
+    custom_keys = {d["key"] for d in custom}
     confirmed = set(typed.get("_confirmed", []))
     cands: dict[str, list[dict]] = {}
     pages_summary = []
@@ -227,7 +230,7 @@ def stage_read(ctx, st: RunState) -> str:
 
     for f in st.files:
         try:
-            doc = ctx.reader.read_document(f, progress=st.progress, confidence=floor)
+            doc = ctx.reader.read_document(f, progress=st.progress, confidence=floor, custom=custom)
         except ReaderUnavailable as e:
             unavailable = str(e)
             st.add(Check("R20", WAIT, key="R20:reader", name="Document reader reachable", owner="system", kind="retry",
@@ -238,7 +241,7 @@ def stage_read(ctx, st: RunState) -> str:
         img_pages = imagey_pages(f, n_pages)          # pages whose digits must be read from pixels
         imagey = bool(img_pages)
         crit = {}
-        recognised = [p for p in doc["pages"] if p["doc_type"] in RECOGNISED]
+        recognised = [p for p in doc["pages"] if p["doc_type"] in RECOGNISED or p["doc_type"] in custom_keys]
         if imagey and recognised:
             try:
                 crit = ctx.reader.read_critical(f, progress=st.progress)
@@ -379,7 +382,8 @@ def stage_read(ctx, st: RunState) -> str:
     for name in ("new_name",):
         for c in cands.get(name, []):
             st.doc_values.setdefault("legal_name", c["value"])
-    profile["msme"] = truthy(typed.get("msme")) or any(truthy(c["value"]) for c in cands.get("msme_claimed", [])) or bool(profile.get("udyam_number"))
+    profile["msme"] = (truthy(typed.get("msme")) or any(truthy(c["value"]) for c in cands.get("msme_claimed", [])) or bool(profile.get("udyam_number"))) \
+        and doc_enabled(ctx.policy, "udyam_certificate")      # switched off in Settings: no MSME checks at all
     profile["bank_account_confirm"] = typed.get("bank_account_confirm")
     st.profile = profile
     # which country is the vendor in? what they claim; else what their identifiers point to (never guessed from digits alone)
@@ -1186,13 +1190,13 @@ def stage_reconcile(ctx, st: RunState) -> str:
                          reason=f"IDs, bank codes, documents, addresses and the phone code all agree with {cname}." + (" (Country inferred from them.)" if st.country_inferred else "")))
 
     # ---- R26: required documents, found by PAGE across one combined PDF or many files ----
-    rows = ck.build({**p, "country": claimed}, st.doc_map)
+    rows = ck.build({**p, "country": claimed}, st.doc_map, ctx.policy)
     st.checklist = [{"key": r.key, "label": r.label, "required": r.required, "why": r.why, "state": r.state, "where": r.where,
                      "link": list(r.link) if r.link else None} for r in rows]
     if rows:
         policy_mode = pol.get("require_documents", "if_uploaded")
         pack_types = {"vendor_registration_form", "pan_card", "gst_certificate", "cancelled_cheque_or_bank_letter", "bank_details_form", "address_proof",
-                      "udyam_certificate", "tax_form_or_vat_certificate"}
+                      "udyam_certificate", "tax_form_or_vat_certificate"} | {d["key"] for d in custom_docs(ctx.policy)}
         submitted_a_pack = any(t["doc_type"] in pack_types for f in st.doc_map for pg in f["pages"] for t in pg["types"])
         enforce = policy_mode == "always" or (policy_mode == "if_uploaded" and submitted_a_pack)
         miss_rows = ck.missing(rows)

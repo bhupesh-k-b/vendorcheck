@@ -76,6 +76,10 @@ EXAMPLES["mehta_separate"] = {
     "label": "Separate files (Mehta, proprietor)", "samples": ["mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf"],
     "note": "SPECIMEN, fictional proprietorship sending five separate files. Its electricity bill is for a different address than the GST registration, so the address is flagged. No certificate of incorporation is needed for a proprietor.",
     "fields": MEHTA}
+EXAMPLES["mehta_aadhaar"] = {
+    "label": "Mehta with Aadhaar (add it in Settings first)", "fields": MEHTA,
+    "samples": ["mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "mehta_aadhaar_specimen.pdf"],
+    "note": "SPECIMEN, fictional proprietor. The same five files as the Mehta sample plus a specimen Aadhaar page (masked number). Add 'Aadhaar card' under Settings → Compliance documents to see it checked."}
 EXAMPLES["orchid_wrong"] = {
     "label": "Wrong documents attached (Orchid)", "samples": ["orchid_wrong_documents.pdf"],
     "note": "SPECIMEN, fictional. The vendor attached a brochure, an unrelated invoice, someone else's PAN card and a bill: no GST certificate, cheque or incorporation certificate. The PAN card's name and number do not match the vendor.",
@@ -120,6 +124,6 @@ for _e in EXAMPLES.values():      # every sample that has bank details also says
     _f = _e["fields"]
     if (_f.get("bank_account") or _f.get("iban")) and _f.get("legal_name") and "account_holder" not in _f:
         _e["fields"] = {**_f, "account_holder": _f["legal_name"]}
-SAMPLE_FILES = {"kaveri_happy_pack.pdf", "rmc1_munitions_form_filled.pdf", "rmc1_infosys_form_filled.pdf", "kaveri_complete_pack.pdf", "mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf",
+SAMPLE_FILES = {"mehta_aadhaar_specimen.pdf", "kaveri_happy_pack.pdf", "rmc1_munitions_form_filled.pdf", "rmc1_infosys_form_filled.pdf", "kaveri_complete_pack.pdf", "mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf",
                 "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "orchid_wrong_documents.pdf", "lakeview_us_pack.pdf", "rheinland_eu_pack.pdf","eternal_nse_name_change_filing.pdf", "blank_vendor_form.pdf", "infosys_vendor_form_typed.pdf",
                 "kaveri_pack_clean.pdf", "kaveri_pack_messy.pdf", "kaveri_pan_card.png", "registration_form_blank.pdf"}

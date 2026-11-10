@@ -62,6 +62,8 @@ def main():
     copy("lakeview_us_pack.pdf", edge / "08_us_vendor_with_documents")
     copy("rheinland_eu_pack.pdf", edge / "09_german_vendor_with_documents")
     (edge / "10_typed_only_no_documents").mkdir(parents=True, exist_ok=True)
+    for f in ("mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "mehta_aadhaar_specimen.pdf"):
+        copy(f, edge / "13_custom_compliance_document")
     copy("rmc1_munitions_form_filled.pdf", edge / "11_bank_account_name_matches")
     copy("kaveri_pack_clean.pdf", edge / "12_bank_account_name_differs")
 
@@ -286,6 +288,21 @@ the vendor says Germany, so it is flagged.
 is a unit account of the company, so it matches the legal name. The case still waits on the vendor for the documents not attached (PAN card, GST certificate, address proof, incorporation certificate).
 
 **What else can go differently:** an account in a director's name; a different company's name (the pages are shown as another party's and not used); a joint account.
+""",
+"13_custom_compliance_document": """
+# A compliance document you add yourself (Aadhaar)
+
+**Files:** the five Mehta documents plus `mehta_aadhaar_specimen.pdf` (a fictional proprietor, masked number, watermarked SPECIMEN).
+
+**How to run:**
+1. **Settings → Verification policy → Compliance documents.** Choose the **Aadhaar card** template, press **Add document**, and **Save policy**. Optionally switch **Udyam certificate (MSME)** off.
+2. **Load a sample → Separate files (Mehta, proprietor)** → Submit. The Required documents list now has **Aadhaar card: Missing**, and the vendor email asks for it.
+3. **Load a sample → Mehta with Aadhaar** → Submit. **Aadhaar card: Found** with its file and page.
+
+**Expected:** with Udyam switched off the Udyam row disappears and no MSME check runs. Any document you add is recognised on every page of every upload by the words you list (spaces are ignored, because text
+recognition drops them), applies to the vendors you choose, and is requested from the vendor when missing. Personal ID documents carry sensitive numbers: only their presence is recorded, not the number.
+
+**What else can go differently:** a document whose words also appear on other documents (use distinctive words, or require more than one); a scan too blurry for the words to be read (it counts as missing).
 """,
 "12_bank_account_name_differs": """
 # Bank account name differs

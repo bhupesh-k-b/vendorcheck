@@ -60,7 +60,9 @@ Open the dashboard. Say: "The dashboard keeps history across runs: status, outco
   and a second person approves: Approved, labelled **Simulated** (the registry answer is synthetic for a fictional company; never written to the vendor master). Same flow without a browser: Test bench scenario H2.
 - **Zoho duplicate** (run after Zoho): "Existing vendor found", no new record or code.
 - **TCS wrong GSTIN**: tax-collector GSTIN flagged instantly, no credit spent.
-- **Settings → Verification policy**: change the name-match threshold or accepted evidence live.
+- **Settings → Verification policy**: change the name-match threshold, the minimum reading confidence or accepted evidence live.
+- **Compliance documents** (Settings): add a document your company needs (for example **Aadhaar card** from the template) and switch off one you don't (for example Udyam). Then **Load a sample → Separate files (Mehta)**:
+  the new document shows **Missing** and the vendor email asks for it; **Mehta with Aadhaar** shows it **Found**. Folder `13_custom_compliance_document` has the files and steps.
 
 ## Talking points for "walk us through your decisions"
 - **Deterministic rules decide; AI only reads.** Text recognition and rules do the work; the language model only cleans up hard-to-read text and can't introduce an identifier that isn't in the source.
