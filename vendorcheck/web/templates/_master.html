@@ -1,0 +1,34 @@
+{% import '_macros.html' as m %}
+{# Vendor master record. #}
+<div class="card overflow-hidden">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+    <div><p class="text-xs font-medium text-slate-500">Vendor code</p><p class="mono text-xl font-semibold text-slate-900">{{ vm.vendor_code }}</p></div>
+    <div class="text-right"><span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ring-1 {{ 'bg-emerald-50 text-emerald-800 ring-emerald-200' if vm.status == 'active' else 'bg-rose-50 text-rose-800 ring-rose-200' }}"><span class="h-2 w-2 rounded-full {{ 'bg-emerald-500' if vm.status == 'active' else 'bg-rose-500' }}"></span>{{ 'Active' if vm.status == 'active' else 'Blocked' }}</span>
+      <p class="mt-1 text-xs text-slate-500">Verified {{ rec.last_verified }} · re-verify by {{ rec.next_reverify }}</p></div>
+  </div>
+  <dl class="divide-y divide-slate-100 text-sm">
+    {% macro row(label, mode_key='') %}
+      <div class="grid gap-1 px-5 py-3 sm:grid-cols-[180px_1fr] sm:items-start"><dt class="text-slate-500">{{ label }}</dt><dd class="text-slate-900">{{ caller() }}</dd>
+        </div>
+    {% endmacro %}
+    {% call row('Legal name', 'R12') %}{{ rec.legal_name }}{% endcall %}
+    {% if rec.trade_name %}{% call row('Trade name') %}{{ rec.trade_name }}{% endcall %}{% endif %}
+    {% call row('Country') %}{{ rec.get('country', 'IN') }}{% endcall %}
+    {% if rec.get('tax_id') %}{% call row('Tax ID', 'R23v') %}{{ rec.tax_id.value|mask_ids }} · {{ rec.tax_id.country }} <span class="text-slate-500">· {{ rec.tax_id.note }}</span>{% endcall %}{% endif %}
+    {% if rec.get('pan') %}{% call row('PAN', 'R14') %}{{ rec.pan.value|mask_ids }} · {{ rec.pan.status }}{% endcall %}{% endif %}
+    {% if rec.gstins %}{% call row('GSTIN', 'R11') %}
+      {% for g in rec.gstins %}<div class="mb-1">{{ g.gstin|mask_ids }} · {{ g.state }} · {{ g.status }}{% if g.taxpayer_type %} · {{ g.taxpayer_type }}{% endif %} · e-invoicing {{ g.einvoice or 'unknown' }}</div>{% endfor %}
+    {% endcall %}{% endif %}
+    {% if rec.cin %}{% call row('CIN', 'R15') %}{{ rec.cin.value|mask_ids }} · {{ rec.cin.company_status }}{% endcall %}{% endif %}
+    {% call row('MSME', 'R17') %}{% if rec.msme %}{{ rec.msme.type or 'Type not verified' }}{% if rec.msme.payment_terms_days %} · payment terms ≤ {{ rec.msme.payment_terms_days }} days{% endif %}{% else %}<span class="text-slate-400">Not claimed</span>{% endif %}{% endcall %}
+    {% if rec.get('classification') %}{% call row('Classification') %}{{ rec.classification.vendor_type or '—' }} · {{ rec.classification.expense_category or '—' }} · owner {{ rec.classification.department_owner or '—' }}{% endcall %}{% endif %}
+    {% if rec.get('payment_terms') %}{% call row('Payment terms') %}Configured {{ rec.payment_terms.configured or '—' }} · negotiated {{ rec.payment_terms.negotiated or '—' }} · <strong class="{{ 'text-emerald-700' if rec.payment_terms.matches_negotiated else 'text-rose-700' }}">{{ 'Match' if rec.payment_terms.matches_negotiated else 'Mismatch' }}</strong>{% endcall %}{% endif %}
+    {% call row('Bank accounts', 'R16') %}
+      {% for b in rec.bank_accounts %}<div class="mb-1">{{ b.account|mask_ids }} · {{ b.ifsc }} · <strong>{{ b.status|capitalize }}</strong> · verified via {{ b.verified_via or 'n/a' }}{% if b.verified_by %} by {{ b.verified_by }}, approved by {{ b.approved_by }}{% endif %}</div>
+      {% else %}—{% endfor %}
+    {% endcall %}
+    {% call row('Contact') %}{{ rec.contact_on_file.name }} · {{ rec.contact_on_file.email }} · {{ rec.contact_on_file.phone|mask_ids }}{% endcall %}
+    {% if rec.conditions %}{% call row('Conditions') %}{% for c in rec.conditions %}<div class="mb-1">{{ c.text }} <span class="text-slate-500">(re-check by {{ c.recheck_on }})</span></div>{% endfor %}{% endcall %}{% endif %}
+    {% if rec.tds_note %}{% call row('TDS') %}{{ rec.tds_note }}{% endcall %}{% endif %}
+  </dl>
+</div>

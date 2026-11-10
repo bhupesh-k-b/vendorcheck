@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}{{ m.vendor_code }}{% endblock %}
+{% block content %}
+<nav class="text-sm text-slate-500" aria-label="Breadcrumb"><a href="/vendors" class="hover:text-slate-800">Vendors</a> <span class="mx-1 text-slate-300">/</span> <span class="text-slate-700">{{ m.vendor_code }}</span></nav>
+<h1 class="mb-5 mt-3 text-2xl font-semibold tracking-tight text-slate-900">{{ m.legal_name }}</h1>
+{% set vm = m %}{% include '_master.html' %}
+{% if cases %}
+<h2 class="section-title mb-3 mt-8">Submissions</h2>
+<ul class="card divide-y divide-slate-100 text-sm">{% for c in cases %}<li><a class="flex items-center justify-between px-5 py-3 hover:bg-slate-50" href="/cases/{{ c.id }}"><span class="font-medium text-slate-900">{{ c.display_name }}</span><span class="text-slate-500">{{ c.status|capitalize }} · {{ c.created_at|ist }}</span></a></li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}

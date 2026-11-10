@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Manual check{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+<nav class="text-sm text-slate-500" aria-label="Breadcrumb"><a href="/cases/{{ case.id }}" class="hover:text-slate-800">{{ case.display_name }}</a> <span class="mx-1 text-slate-300">/</span> <span class="text-slate-700">Manual check</span></nav>
+<h1 class="mb-1 mt-3 text-2xl font-semibold tracking-tight text-slate-900">Check on the official site</h1>
+<p class="text-sm text-slate-500">No public API exists for this register. Look the vendor up yourself, then attach a screenshot of the result. It is recorded with your name and the time, and a second person approves it.</p>
+
+<ol class="mt-6 space-y-4">
+  <li class="card card-pad" x-data="{ copied: false }">
+    <p class="section-title"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-100 text-xs font-bold text-accent-700">1</span>Open the official page</p>
+    <p class="section-sub mt-1">{{ title }}. The identifier is copied for you.</p>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <button type="button" class="btn btn-primary"
+              @click="navigator.clipboard.writeText('{{ ident }}').catch(() => {}); copied = true; window.open('{{ url }}', '_blank', 'noopener')">Open official site</button>
+      <span class="text-sm text-slate-600">{{ label }}: <span class="mono rounded bg-slate-100 px-2 py-1 font-semibold text-slate-900">{{ ident }}</span></span>
+      <span x-show="copied" x-cloak class="text-sm text-emerald-700">✓ Copied</span>
+    </div>
+  </li>
+
+  <li class="card card-pad">
+    <p class="section-title"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-100 text-xs font-bold text-accent-700">2</span>Add a screenshot of the result</p>
+    <form method="post" action="/cases/{{ case.id }}/assist/{{ source }}/extract" enctype="multipart/form-data" x-data="{ name: '' }"
+          @paste.window="const f = [...($event.clipboardData?.files || [])][0]; if (f) { const dt = new DataTransfer(); dt.items.add(new File([f], 'pasted-screenshot.png', { type: f.type })); $refs.shot.files = dt.files; name = 'pasted-screenshot.png'; }">
+      <label class="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 px-6 py-8 text-center transition hover:border-accent-500 hover:bg-accent-50/40"
+             @dragover.prevent @drop.prevent="$refs.shot.files = $event.dataTransfer.files; name = $refs.shot.files[0]?.name">
+        <span class="text-sm font-semibold text-slate-900">Paste, drop or choose a screenshot</span>
+        <span class="mt-1 text-xs text-slate-500" x-text="name || 'PNG or JPG of the result page'"></span>
+        <input x-ref="shot" type="file" name="screenshot" accept="image/*" class="sr-only" @change="name = $refs.shot.files[0]?.name">
+      </label>
+      <button class="btn btn-ghost mt-3">Read screenshot</button>
+    </form>
+  </li>
+
+  {% if extracted is not none and extracted is defined %}
+  <li class="card card-pad border-accent-200">
+    <p class="section-title"><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-100 text-xs font-bold text-accent-700">3</span>Confirm the values</p>
+    {% if notice %}<p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{{ notice }}</p>{% endif %}
+    {% if looks_official == 'no' %}<p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This does not look like the official result page. Check you captured the right screen.</p>{% endif %}
+    <form method="post" action="/cases/{{ case.id }}/assist/{{ source }}/save" class="mt-3">
+      <input type="hidden" name="shot_sha" value="{{ shot.sha256 }}"><input type="hidden" name="shot_name" value="{{ shot.name }}">
+      <div class="grid gap-4 sm:grid-cols-2">
+        {% for f in fields %}<label class="block text-sm font-medium text-slate-700">{{ f|replace('_', ' ')|capitalize }}
+          <input name="f_{{ f }}" value="{{ extracted.get(f, '') }}" class="mt-1.5 block w-full rounded-lg border-slate-300 text-sm"></label>{% endfor %}
+      </div>
+      <p class="mt-3 text-xs text-slate-500">Correct anything that was misread. You are confirming these values from the official page.</p>
+      <button class="btn btn-primary mt-4">Save as evidence</button>
+    </form>
+  </li>
+  {% endif %}
+</ol>
+</div>
+{% endblock %}

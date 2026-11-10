@@ -1,0 +1,29 @@
+{% import '_macros.html' as m %}
+{% if table %}
+<details class="card mt-8" aria-labelledby="ev-h">
+  <summary class="flex items-center gap-2 px-5 py-4"><svg class="chev h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg><span id="ev-h" class="section-title">Evidence summary</span><span class="section-sub">typed, document and registry values side by side</span></summary>
+  <div class="overflow-x-auto border-t border-slate-100">
+    <table class="w-full table-fixed text-sm"><colgroup><col class="w-[16%]"><col class="w-[26%]"><col class="w-[26%]"><col class="w-[18%]"><col class="w-[14%]"></colgroup>
+      <thead><tr class="border-b border-slate-100 text-xs text-slate-500">
+        <th class="px-5 py-3 text-left font-medium">Field</th><th class="px-4 py-3 text-left font-medium">Typed</th><th class="px-4 py-3 text-left font-medium">Document</th><th class="px-4 py-3 text-left font-medium">Registry</th><th class="px-4 py-3 text-right font-medium">Result</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in table %}
+          {% set good = r.result in ['match', 'verified', 'exists', 'format ok', 'explained'] %}
+          {% set warn = r.result in ['mismatch', 'blocked', 'needs review'] %}
+          <tr class="{{ 'bg-amber-50/40' if warn }}">
+            <th class="px-5 py-3 text-left align-top font-medium text-slate-800">{{ r.label }}</th>
+            <td class="break-words px-4 py-3 align-top text-[13px] text-slate-700">{{ r.declared|mask_ids or '—' }}</td>
+            <td class="break-words px-4 py-3 align-top text-[13px] text-slate-700">{{ r.document|mask_ids or '—' }}</td>
+            <td class="break-words px-4 py-3 align-top text-[13px] text-slate-700">{{ r.government|mask_ids or '—' }}</td>
+            <td class="px-4 py-3 text-right align-top">
+              {% if good %}{{ m.pill('ok', r.result|capitalize) }}
+              {% elif warn %}{{ m.pill('warn', r.result|capitalize) }}
+              {% else %}<span class="text-slate-300">—</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}

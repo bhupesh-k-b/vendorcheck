@@ -1,0 +1,81 @@
+{% import '_macros.html' as m %}
+{% if matrix %}
+{% set band = {'strong': ('text-emerald-600', 'Strong', 'text-emerald-700'), 'review': ('text-amber-500', 'Needs review', 'text-amber-700'), 'weak': ('text-rose-500', 'Weak', 'text-rose-700')}[matrix.band] %}
+{% set sc = matrix.score if matrix.score is not none else 0 %}
+{% set agree = matrix['agreement'] if matrix['agreement'] is defined and matrix['agreement'] is not none else matrix.score %}
+<section class="mt-8" aria-labelledby="mx-h" id="consistency">
+  <div class="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+    <div class="min-w-0">
+      <h2 id="mx-h" class="section-title">Consistency across documents</h2>
+      <p class="section-sub">Every value is compared across the typed form, each document and the registry record.</p>
+      <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('ok', 'h-5 w-5') }}Agrees</span>
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('bad', 'h-5 w-5') }}Differs</span>
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('missing', 'h-5 w-5') }}Not shown</span>
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('unclear', 'h-5 w-5') }}Unclear</span>
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('other', 'h-5 w-5') }}Another party</span>
+      </div>
+    </div>
+    <div class="card flex items-center gap-5 px-5 py-4" title="Advisory. The status is decided by the rules, not the score.">
+      <div class="relative h-[68px] w-[68px] shrink-0" role="img" aria-label="Consistency score {{ sc }} out of 100">
+        <svg viewBox="0 0 64 64" class="h-full w-full -rotate-90"><circle cx="32" cy="32" r="26" fill="none" stroke="#eef0f3" stroke-width="6"/>
+          <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" class="{{ band[0] }}" stroke-dasharray="{{ (sc * 163.36 / 100)|round(1) }} 163.36"/></svg>
+        <span class="absolute inset-0 flex items-center justify-center text-lg font-semibold tabular-nums text-slate-900" id="mx-score">{{ matrix.score if matrix.score is not none else '–' }}</span>
+      </div>
+      <div class="text-sm">
+        <p class="font-semibold {{ band[2] }}">{{ band[1] }}</p>
+        <p class="mt-0.5 text-xs text-slate-500">Details agree: <span class="font-medium text-slate-800">{{ agree if agree is not none else '–' }}%</span></p>
+        {% if matrix.coverage %}<p class="text-xs text-slate-500">Documents: <span class="font-medium {{ 'text-slate-800' if matrix.coverage.found == matrix.coverage.required else 'text-rose-700' }}">{{ matrix.coverage.found }} of {{ matrix.coverage.required }}</span></p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 overflow-x-auto">
+    <table class="min-w-full text-sm" id="mx-table">
+      <thead>
+        <tr class="border-b border-slate-100 text-xs text-slate-500">
+          <th class="sticky left-0 z-10 bg-white px-5 py-3 text-left font-medium">Document</th>
+          {% for f, label in matrix.fields %}<th class="whitespace-nowrap px-2.5 py-3 text-center font-medium">{{ label|replace('Bank account no.', 'Account no.')|replace('Account holder', 'Holder') }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in matrix.rows %}
+          {% set has_bad = r.cells.values()|selectattr('state', 'equalto', 'bad')|list|length > 0 %}
+          {% set is_other = r.cells.values()|selectattr('state', 'equalto', 'foreign')|list|length > 0 %}
+          <tr class="{{ 'bg-rose-50/40' if has_bad }} {{ 'bg-amber-50/40' if is_other }}">
+            <th class="sticky left-0 z-10 px-5 py-3 text-left align-middle font-medium text-slate-900 {{ 'bg-rose-50' if has_bad else ('bg-amber-50' if is_other else 'bg-white') }}">
+              <span class="block max-w-[12.5rem]">{{ r.label }}</span>
+              <span class="mono block max-w-[12.5rem] truncate text-[11px] font-normal text-slate-400" title="{{ r.ref }}">{{ r.ref }}</span>
+            </th>
+            {% for f, label in matrix.fields %}{% set c = r.cells[f] %}
+              <td class="px-2.5 py-3 text-center align-middle" {% if c.reason %}title="{{ c.reason }}"{% endif %}>
+                {% if c.state == 'ok' %}{{ m.mark('ok') }}
+                {% elif c.state == 'bad' %}<div class="flex flex-col items-center gap-1">{{ m.mark('bad') }}<span class="mono max-w-[5.5rem] truncate text-[11px] text-rose-700">{{ c.value|mask_ids }}</span></div>
+                {% elif c.state == 'missing' %}{{ m.mark('missing') }}
+                {% elif c.state == 'unclear' %}{{ m.mark('unclear') }}
+                {% elif c.state == 'proprietor' %}<div class="flex flex-col items-center gap-1">{{ m.mark('proprietor') }}<span class="text-[11px] text-sky-700">Proprietor</span></div>
+                {% elif c.state == 'foreign' %}<div class="flex flex-col items-center gap-1">{{ m.mark('other') }}{% if f == 'account_holder' and c.value %}<span class="max-w-[7rem] truncate text-[11px] text-amber-800">{{ c.value|mask_ids }}</span>{% endif %}</div>{% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if matrix.coverage and matrix.coverage.missing %}
+    <div class="mt-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm" id="mx-gaps">
+      {{ m.mark('other', 'h-6 w-6') }}
+      <div><p class="font-semibold text-amber-900">The score is held down by missing or wrong documents</p>
+        <p class="mt-0.5 text-slate-700">The details above agree{% if agree is not none %} ({{ agree }}%){% endif %}, but {{ matrix.coverage.missing|length }} required document{{ 's' if matrix.coverage.missing|length != 1 }} {{ 'are' if matrix.coverage.missing|length != 1 else 'is' }} not usable: {{ matrix.coverage.missing|join(', ') }}.</p></div>
+    </div>
+  {% endif %}
+
+  {% if matrix.conflicts %}
+    <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-4" id="mx-why">
+      <p class="text-sm font-semibold text-rose-900">Why these are flagged</p>
+      <ul class="mt-2 space-y-2 text-sm text-slate-800">{% for f, items in matrix.conflicts.items() %}{% for it in items %}<li class="flex items-start gap-2.5">{{ m.mark('bad', 'h-5 w-5') }}<span>{{ it.reason|mask_ids }}</span></li>{% endfor %}{% endfor %}</ul>
+    </div>
+  {% endif %}
+</section>
+{% endif %}

@@ -1,0 +1,305 @@
+{% import '_macros.html' as m %}
+{# The live run view. While the run is going, HTMX re-fetches this fragment every 500 ms; when it finishes, polling stops. #}
+{% macro check_row(c) %}
+  {% set loud = c.result in ['flag', 'wait', 'reject', 'note'] %}
+  {% set tone = {'flag': 'border-amber-300 bg-amber-50/60', 'wait': 'border-amber-300 bg-amber-50/60', 'reject': 'border-rose-300 bg-rose-50/70', 'note': 'border-emerald-200 bg-emerald-50/50'} %}
+  <div class="rounded-lg border {{ tone.get(c.result, 'border-slate-200 bg-white') }} {{ 'ring-2 ring-accent-500 ring-offset-1' if c._first else '' }}" {% if c._first %}id="first-blocking" data-first-blocking{% endif %}>
+    <details {{ 'open' if loud }} class="group">
+      <summary class="flex items-start gap-3 p-3">
+        {{ m.icon(c.result) }}
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="font-medium text-slate-900">{{ c.name }}</span>
+                        {% if c.source %}<span class="text-xs text-slate-400">{{ c.source }}</span>{% endif %}
+            {% if c.blocking %}<span class="ml-auto">{{ m.owner(c.owner) }}</span>{% endif %}
+          </div>
+          <p class="mt-1 text-sm text-slate-600">{{ c.reason|mask_ids }}</p>
+        </div>
+      </summary>
+      {% if c.expected or c.found or c.evidence_ref or c.detail %}
+      <div class="border-t border-slate-200/70 px-3 pb-3 pt-2 pl-12 text-sm">
+        <div class="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+          {% if c.expected %}<div><span class="text-xs uppercase tracking-wide text-slate-500">Expected</span><div class="text-slate-800">{{ c.expected|mask_ids }}</div></div>{% endif %}
+          {% if c.found %}<div><span class="text-xs uppercase tracking-wide text-slate-500">Found</span><div class="text-slate-800">{{ c.found|mask_ids }}</div></div>{% endif %}
+        </div>
+        {% if c.evidence_ref %}<p class="mt-2 text-xs text-slate-500">Evidence: {{ c.evidence_ref|mask_ids }}</p>{% endif %}
+        {% if c.detail %}<p class="mt-2 text-sm text-slate-700">{{ c.detail|mask_ids }}</p>{% endif %}
+      </div>
+      {% endif %}
+    </details>
+  </div>
+{% endmacro %}
+
+<div id="run" {% if running %}hx-get="/runs/{{ run.id }}/fragment" hx-trigger="every 500ms" hx-swap="outerHTML"{% endif %}>
+<div class="lg:grid lg:grid-cols-[minmax(0,1fr)_310px] lg:gap-6"><div class="min-w-0">
+
+  {# ---------- status ---------- #}
+  {% set tone = {'approved': 'border-l-emerald-500', 'pending': 'border-l-amber-500', 'rejected': 'border-l-rose-500'} %}
+  {% if running %}
+    {% set done_n = stages|selectattr('status', 'in', ['passed', 'flagged', 'failed'])|list|length %}
+    {% set cur = stages|selectattr('status', 'equalto', 'running')|list|first %}
+    <div class="card border-l-4 border-l-accent-500 card-pad">
+      <div class="flex flex-wrap items-center gap-3">{{ m.chip('running') }}<h2 class="text-lg font-semibold text-slate-900">Checking {{ case.display_name }}</h2></div>
+      <p class="mt-1 text-sm text-slate-500">Step {{ [done_n + 1, 7]|min }} of 7{% if cur %} · {{ cur.name }}{% endif %}. Progress is saved as it goes, so you can leave this page.</p>
+    </div>
+  {% elif not is_latest %}
+    <div class="card card-pad">
+      <div class="flex flex-wrap items-center gap-3">{{ m.chip('earlier') }}<span class="font-semibold text-slate-900">Earlier run of version {{ version.number }}</span></div>
+      <p class="mt-1 text-sm text-slate-500"><a class="font-medium text-accent-700 hover:underline" href="/cases/{{ case.id }}">Open the latest result →</a></p>
+    </div>
+  {% else %}
+    <div class="card border-l-4 {{ tone.get(case.status, 'border-l-slate-300') }} card-pad">
+      <div class="flex flex-wrap items-center gap-3">
+        {{ m.chip(case.status, case.waiting_on) }}
+        <h2 class="text-lg font-semibold text-slate-900">{{ case.reason }}</h2>
+      </div>
+      {% if decision.get('simulated') %}<p class="mt-2 text-sm font-semibold text-orange-800">Simulated run on recorded evidence. Nothing here is real.</p>{% endif %}
+      <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+        <span>Version {{ version.number }}</span>
+        <span>{{ country_name }}{{ ' (inferred)' if country_inferred and country }}</span>
+        {% if case.vendor_code %}<span>Vendor record <a class="font-medium text-accent-700 hover:underline" href="/vendors/{{ case.vendor_code }}">{{ case.vendor_code }}</a></span>{% endif %}
+        {% if not files %}{{ m.pill('warn', 'No documents provided') }}{% endif %}
+        {% if form_state %}{{ m.pill('warn', 'Typed form not filled' if form_state.state == 'empty' else 'Typed form incomplete') }}{% endif %}
+      </p>
+      {% if decision.get('explanations') and case.status == 'approved' %}
+        <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">{% for e in decision.explanations %}<li>{{ e.text|mask_ids }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if dup and is_latest %}
+  <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 p-4" id="dup-card" role="status">
+    <div class="flex items-center gap-2">
+      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 text-sky-700"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+      <p class="font-semibold text-slate-900">{{ 'Identifiers match different vendors' if dup.conflict else 'Existing vendor found in the vendor master' }}</p>
+    </div>
+    <ul class="mt-3 space-y-1.5 text-sm text-slate-800">
+      {% for d in dup.vendors %}
+        <li><a class="mono font-semibold text-accent-700 hover:underline" href="/vendors/{{ d.code }}">{{ d.code }}</a> · {{ d.name }}
+          <span class="text-slate-500">· matched on {{ d['keys']|join(', ') }}</span></li>
+      {% endfor %}
+    </ul>
+    <p class="mt-2.5 text-sm text-slate-600">{% if dup.conflict %}Procurement must resolve this before any record is created or updated.{% else %}No new vendor record or code is created. This submission is treated as an update to the existing vendor.{% endif %}</p>
+  </div>
+  {% endif %}
+
+  {% if running %}
+  <ol class="card mt-4 divide-y divide-slate-100" aria-label="Stages" id="live-stages">
+    {% for s in stages %}
+      <li class="flex items-start gap-4 px-5 py-3.5 {{ 'bg-accent-50/50' if s.status == 'running' }}">
+        <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold
+          {{ {'passed': 'bg-emerald-100 text-emerald-700', 'flagged': 'bg-amber-100 text-amber-800', 'failed': 'bg-rose-100 text-rose-700', 'running': 'bg-accent-600 text-white stage-running', 'queued': 'bg-slate-100 text-slate-400'}.get(s.status) }}">
+          {% if s.status == 'passed' %}✓{% elif s.status == 'flagged' %}!{% elif s.status == 'failed' %}✕{% elif s.status == 'running' %}<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>{% else %}{{ loop.index }}{% endif %}
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold {{ 'text-slate-400' if s.status == 'queued' else 'text-slate-900' }}">{{ s.name }}</p>
+          <p class="text-sm {{ 'text-slate-400' if s.status == 'queued' else 'text-slate-600' }}">{% if s.status == 'running' %}{{ s.blurb }}…{% elif s.status == 'queued' %}{{ s.blurb }}{% else %}{{ (s.summary or '')|mask_ids }}{% endif %}</p>
+        </div>
+        <span class="shrink-0 text-xs tabular-nums text-slate-400">{% if s.status == 'running' %}{{ s.elapsed|dur }}{% elif s.dur is not none and s.status != 'queued' %}{{ s.dur|dur }}{% endif %}</span>
+      </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <ol class="mt-4 flex flex-wrap items-center gap-x-1 gap-y-2" aria-label="Progress">
+    {% for s in stages %}
+      {% set dot = {'passed': 'bg-emerald-500', 'flagged': 'bg-amber-500', 'failed': 'bg-rose-500', 'running': 'bg-accent-600 stage-running', 'queued': 'bg-slate-300'} %}
+      <li class="flex items-center gap-1.5 text-xs {{ 'text-slate-400' if s.status == 'queued' else 'text-slate-600' }}" title="{{ s.summary|striptags }}">
+        <span class="h-2 w-2 rounded-full {{ dot.get(s.status) }}"></span><span class="font-medium">{{ s.name }}</span>
+        {% if s.status == 'running' %}<span class="text-slate-400">{{ s.elapsed|dur }}</span>{% elif s.dur is not none and s.status != 'queued' %}<span class="text-slate-400">{{ s.dur|dur }}</span>{% endif %}
+      </li>
+      {% if not loop.last %}<span class="h-px w-5 bg-slate-200" aria-hidden="true"></span>{% endif %}
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+  {% if not running and is_latest %}
+  {# ---------- actions by owner ---------- #}
+  <section class="mt-8" aria-labelledby="actions-h">
+    <h2 id="actions-h" class="section-title">Next steps</h2>
+    {% if not items %}
+      <p class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">{% if case.status == 'approved' %}Nothing. This vendor is approved{% if decision.conditions %}, subject to the conditions below{% endif %}.{% elif case.status == 'rejected' %}Nothing further on this version. {{ decision.rejected.reason|mask_ids if decision.rejected }}{% else %}Nothing open.{% endif %}</p>
+    {% endif %}
+    <div class="mt-3 space-y-3">
+      {% for it in items %}
+        {% set t = it.task %}
+        <div class="card p-4">
+          <div class="flex flex-wrap items-center gap-2">{{ m.owner(it.owner) }}
+            <span class="font-semibold text-slate-900">{{ it.title|upfirst }}</span></div>
+          <p class="mt-1.5 text-sm text-slate-600">{{ (it.detail or it.reason)|mask_ids }}</p>
+
+          {% if it.owner == 'vendor' %}
+            <p class="mt-2 text-sm text-slate-600">Waiting for the vendor. <a class="font-medium text-accent-700 hover:underline" href="/v/{{ case.token }}" target="_blank">Open vendor page ↗</a></p>
+          {% elif it.stage == 'needs_approval' %}
+            <div class="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
+              <p><strong>{{ t.resolved_by }}</strong> recorded <strong>{{ 'confirmed' if t.outcome == 'confirmed' else 'REJECT (not confirmed)' }}</strong>{% if t.method %} · {{ t.method }}{% endif %}.{% if t.note %} “{{ t.note }}”{% endif %}</p>
+              {% if it.can_approve %}
+                <form method="post" action="/tasks/{{ t.id }}/approve" class="mt-3 flex gap-2">
+                  <button name="decision" value="approve" class="rounded-lg bg-accent-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-700">Approve as second person</button>
+                  <button name="decision" value="back" class="rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-white">Send back</button>
+                </form>
+              {% elif t.resolved_by == user.name %}
+                <p class="mt-2 text-slate-600">You recorded this, so a different person must approve it.</p>
+              {% else %}
+                <p class="mt-2 text-slate-600">Waiting for a second approver.</p>
+              {% endif %}
+            </div>
+          {% elif it.can_resolve and t %}
+            {% if it.kind == 'retry' %}
+              <form method="post" action="/cases/{{ case.id }}/retry" class="mt-3"><button class="rounded-lg bg-accent-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-700">Retry now</button></form>
+            {% elif it.kind == 'categorise' %}
+              {% set has27 = items|selectattr('rule', 'equalto', 'R27')|list|length > 0 %}
+              {% if it.rule == 'R27' or not has27 %}
+              <form method="post" action="/cases/{{ case.id }}/commercial" class="mt-3 grid gap-3 sm:grid-cols-3">
+                <label class="text-xs font-medium text-slate-600">Goods or services
+                  <select name="vendor_type" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm"><option value="">Choose…</option>{% for o in ['goods', 'services', 'goods and services'] %}<option {{ 'selected' if pv.vendor_type == o }}>{{ o }}</option>{% endfor %}</select></label>
+                <label class="text-xs font-medium text-slate-600">Expense category
+                  <select name="expense_category" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm"><option value="">Choose…</option>{% for o in ['Raw materials', 'Components & spares', 'Software & IT services', 'Professional fees', 'Logistics & freight', 'Facilities & maintenance', 'Marketing & events', 'Capital equipment', 'Other'] %}<option {{ 'selected' if pv.expense_category == o }}>{{ o }}</option>{% endfor %}</select></label>
+                <label class="text-xs font-medium text-slate-600">Department owner
+                  <select name="department_owner" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm"><option value="">Choose…</option>{% for o in ['Procurement', 'Finance', 'IT', 'Operations', 'Manufacturing', 'HR', 'Admin', 'Sales & Marketing'] %}<option {{ 'selected' if pv.department_owner == o }}>{{ o }}</option>{% endfor %}</select></label>
+                <label class="text-xs font-medium text-slate-600">Negotiated payment terms (commercial agreement)
+                  <input name="negotiated_terms" value="{{ pv.negotiated_terms or '' }}" required placeholder="e.g. Net 45" class="mt-1 block w-full rounded-lg border-slate-300 text-sm"></label>
+                <label class="text-xs font-medium text-slate-600">Payment terms configured in the system
+                  <input name="system_terms" value="{{ pv.system_terms or '' }}" required placeholder="e.g. 45" class="mt-1 block w-full rounded-lg border-slate-300 text-sm"></label>
+                <div class="flex items-end"><button class="rounded-lg bg-accent-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-700">Save (opens a new version)</button></div>
+              </form>
+              <p class="mt-2 text-xs text-slate-500">The configured terms must equal the negotiated terms exactly. Saving opens a new version and re-runs the checks.</p>
+              {% else %}<p class="mt-2 text-xs text-slate-500">Use the form above.</p>{% endif %}
+            {% elif it.kind == 'evidence' %}
+              <a href="/cases/{{ case.id }}/assist/{{ it.assist }}" class="mt-3 inline-block rounded-lg bg-accent-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-700">Check on the official site</a>
+            {% else %}
+              <form method="post" action="/tasks/{{ t.id }}/resolve" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
+                <label class="text-xs font-medium text-slate-600">Outcome
+                  <select name="outcome" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">Choose…</option><option value="confirmed">Confirmed: this is correct</option><option value="reject">Not confirmed: reject (e.g. not our account)</option></select></label>
+                <label class="text-xs font-medium text-slate-600">How did you confirm?
+                  <select name="method" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                    <option>Called the bank</option><option>Checked a cancelled cheque</option><option>Called the contact on file</option><option>Reviewed the documents</option><option>Other</option></select></label>
+                <label class="text-xs font-medium text-slate-600">Note (what you saw or heard)
+                  <input name="note" class="mt-1 block w-full rounded-lg border-slate-300 text-sm" placeholder="e.g. contact on file says this is not our account"></label>
+                <button class="rounded-lg bg-accent-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-700">Record</button>
+              </form>
+              <p class="mt-2 text-xs text-slate-500">A second person must approve this before it counts.</p>
+            {% endif %}
+          {% else %}
+
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    <div class="mt-3 flex flex-wrap gap-3 text-sm">
+      <form method="post" action="/cases/{{ case.id }}/retry"><button class="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Re-run all checks</button></form>
+      {% if not country or country == 'IN' %}<form method="post" action="/cases/{{ case.id }}/filing-history"><button class="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50" title="Fetches GST filing history live. Uses one API credit.">Check filing history (1 credit)</button></form>{% endif %}
+      <a href="/cases/{{ case.id }}" class="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Open full case</a>
+    </div>
+  </section>
+
+  {% if decision.conditions %}
+  <section class="mt-8" aria-labelledby="cond-h">
+    <h2 id="cond-h" class="section-title">Conditions</h2>
+    <ul class="mt-2 space-y-2">{% for c in decision.conditions %}<li class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-sm"><span class="text-slate-800">{{ c.text }}</span><span class="ml-auto text-slate-600">Re-check by <strong>{{ c.recheck_on }}</strong></span></li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% include '_form_notice.html' %}
+  {% include '_checklist.html' %}
+  {% include '_consistency.html' %}
+  {% include '_links.html' %}
+
+  {# ---------- email the vendor ---------- #}
+  {% if email %}
+  <section class="mt-8" aria-labelledby="mail-h" id="email-panel" x-data="emailComposer()">
+    <script type="application/json" id="email-data">{{ email|tojson }}</script>
+    <h2 id="mail-h" class="section-title">Email to the vendor {% if email.count %}<span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{{ email.count }} item{{ 's' if email.count != 1 }}</span>{% endif %}</h2>
+    <p class="section-sub">Ready to send. Identifiers are partly masked.</p>
+    <div class="mt-3 space-y-3 card p-4">
+      <label class="block text-xs font-medium text-slate-600">To<input x-model="to" class="mt-1 block w-full rounded-lg border-slate-300 text-sm" placeholder="vendor email address"></label>
+      <label class="block text-xs font-medium text-slate-600">Subject<input x-model="subject" class="mt-1 block w-full rounded-lg border-slate-300 text-sm"></label>
+      <label class="block text-xs font-medium text-slate-600">Message<textarea x-model="body" rows="12" class="mt-1 block w-full rounded-lg border-slate-300 text-sm leading-relaxed"></textarea></label>
+      <div class="flex flex-wrap items-center gap-3">
+        <a :href="mailto" class="btn btn-primary" id="mail-open">Open in email app</a>
+        <button type="button" @click="copy()" class="btn btn-ghost">Copy text</button>
+        <span x-show="copied" x-cloak class="text-sm text-emerald-700">✓ copied</span>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% endif %}
+  <details class="card mt-8" id="trace" {% if running %}open{% endif %}>
+    <summary class="flex items-center justify-between gap-3 px-5 py-4">
+      <span class="flex items-center gap-2"><svg class="chev h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg><span class="section-title">Verification trace</span><span class="section-sub">every check and its result</span></span>
+      {% if n_open %}<span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">{{ n_open }} open</span>{% endif %}
+    </summary>
+    {# ---------- checks grouped by stage ---------- #}
+    <div class="min-w-0 space-y-6 border-t border-slate-100 px-5 py-5">
+      {% for s in stages %}
+        <section aria-labelledby="st-{{ s.key }}">
+          <div class="mb-2 flex flex-wrap items-baseline gap-x-3">
+            <h2 id="st-{{ s.key }}" class="text-base font-semibold {{ 'text-slate-400' if s.status == 'queued' else 'text-slate-900' }}">{{ loop.index }} · {{ s.name }}</h2>
+            <span class="text-sm {{ 'text-slate-400' if s.status == 'queued' else 'text-slate-600' }}">{% if s.status == 'queued' %}{{ s.blurb }}{% elif s.summary %}{{ s.summary|mask_ids }}{% elif s.status == 'running' %}Working…{% endif %}</span>
+          </div>
+          {% if s.status == 'running' %}
+            <div class="flex items-center gap-2 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5 text-sm text-accent-800"><svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>{{ s.blurb }}…</div>
+          {% endif %}
+          <div class="space-y-2">{% for c in s.checks %}{{ check_row(c) }}{% endfor %}</div>
+        </section>
+      {% endfor %}
+    </div>
+  </details>
+
+  {% if not running and is_latest %}
+  {% include '_evidence.html' %}
+  {% endif %}
+  </div>
+  {# ---------- documents panel: see the pages next to the results ---------- #}
+  <aside class="mt-8 lg:z-40 lg:mt-0 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto" aria-label="Documents" id="docs-panel" x-data="docViewer()">
+    <h2 class="text-base font-semibold text-slate-900">Documents</h2>
+    {% if doc_map %}<script type="application/json" id="docmap">{{ doc_map|tojson }}</script>{% endif %}
+    {% for f in (doc_map or []) %}
+      <div class="mt-3 rounded-xl border border-slate-200 p-3">
+        <div class="flex items-center justify-between gap-2"><p class="truncate text-sm font-medium text-slate-800" title="{{ f.name }}">{{ f.name }}</p><a class="shrink-0 text-xs text-accent-700 underline" href="/files/{{ f.sha }}/{{ f.name }}" target="_blank">open</a></div>
+        <p class="text-xs text-slate-500">{{ f.pages|length }} page{{ 's' if f.pages|length != 1 }} · select a page to enlarge</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          {% for p in f.pages %}
+            <button type="button" @click="show('{{ f.sha }}', {{ p.page }})" class="group rounded-lg border {{ 'border-amber-300 bg-amber-50' if p.foreign else 'border-slate-200' }} p-1 text-left hover:border-accent-500">
+              <img loading="lazy" src="/pagepng/{{ f.sha }}/{{ p.page }}?s=thumb" alt="Page {{ p.page }}" class="h-28 w-full rounded object-cover object-top">
+              <div class="mt-1 px-0.5 text-[11px] leading-tight"><span class="font-semibold text-slate-700">p.{{ p.page }}</span>
+                <span class="text-slate-600">{% for t in p.types %}{{ t.doc_type|replace('_', ' ') }}{% if not loop.last %} + {% endif %}{% else %}no document found{% endfor %}</span>
+                {% if p.foreign %}<div class="font-semibold text-amber-800">⚠ not the vendor's: {{ p.foreign }}</div>{% endif %}</div>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      {% for f in (files or []) %}<div class="mt-3 rounded-xl border border-slate-200 p-3 text-sm"><a class="text-accent-700 underline" href="/files/{{ f.sha256 }}/{{ f.name }}" target="_blank">{{ f.name }}</a><p class="text-xs text-slate-500">{{ 'Reading the pages…' if running else 'Pages not read.' }}</p></div>
+      {% else %}<p class="mt-2 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">No documents attached. Only the typed form was used.</p>{% endfor %}
+    {% endfor %}
+
+    <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4" @keydown.escape.window="open = null" @click.self="open = null" role="dialog" aria-modal="true">
+      <div class="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl lg:flex-row">
+        <div class="flex-1 overflow-auto bg-slate-100 p-3"><template x-if="open"><img :src="'/pagepng/' + open.sha + '/' + open.page" class="mx-auto max-w-full rounded shadow" alt="Enlarged page"></template></div>
+        <div class="w-full shrink-0 overflow-y-auto p-5 lg:w-96">
+          <div class="flex items-center justify-between"><p class="font-semibold text-slate-900" x-text="file() ? file().name + ' · page ' + open.page : ''"></p>
+            <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-sm" @click="open = null">Close</button></div>
+          <div class="mt-2 flex gap-2"><button type="button" class="rounded-lg border border-slate-300 px-3 py-1 text-sm" @click="step(-1)">← Previous</button><button type="button" class="rounded-lg border border-slate-300 px-3 py-1 text-sm" @click="step(1)">Next →</button></div>
+          <template x-if="info()">
+            <div class="mt-4 text-sm">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">What is on this page</p>
+              <template x-for="t in info().types"><p class="mt-1"><span class="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800" x-text="pretty(t.doc_type)"></span> <span class="text-slate-600" x-text="t.note"></span></p></template>
+              <p x-show="!info().types.length" class="mt-1 text-slate-500">Nothing we could use (blank, instructions or unreadable).</p>
+              <p x-show="info().foreign" class="mt-3 rounded-lg bg-amber-50 p-2 text-amber-900">⚠ This bank document is in the name of <strong x-text="info().foreign"></strong>, not the vendor. It was not used as the vendor's bank details.</p>
+              <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Details read from this page</p>
+              <dl class="mt-1 divide-y divide-slate-100">
+                <template x-for="f in info().fields"><div class="flex justify-between gap-3 py-1.5"><dt class="text-slate-500" x-text="pretty(f.field)"></dt><dd class="mono text-right text-slate-900" x-text="f.value"></dd></div></template>
+              </dl>
+              <p x-show="!info().fields.length" class="mt-1 text-slate-500">No identifiers or names on this page.</p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </aside>
+  </div>
+
+  {% if not running %}<div id="run-done" data-first="{{ first_blocking or '' }}"></div>{% endif %}
+</div>

@@ -1,0 +1,63 @@
+{# Shared pieces. Status is always colour + icon + word. #}
+{% macro chip(status, waiting_on='', big=False) %}
+  {% set m = {'approved': ('bg-emerald-50 text-emerald-800 ring-emerald-200', '✓', 'Approved'),
+              'pending': ('bg-amber-50 text-amber-900 ring-amber-200', '!', 'Pending'),
+              'rejected': ('bg-rose-50 text-rose-800 ring-rose-200', '✕', 'Rejected'),
+              'running': ('bg-slate-100 text-slate-700 ring-slate-200', '◌', 'Running'),
+              'earlier': ('bg-slate-100 text-slate-600 ring-slate-200', '–', 'Earlier run')} %}
+  {% set c = m.get(status, m['running']) %}
+  <span class="inline-flex items-center gap-1.5 rounded-full {{ 'px-3 py-1 text-sm' if big else 'px-2.5 py-0.5 text-xs' }} font-semibold ring-1 {{ c[0] }}">
+    {% if status == 'running' %}<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>{% else %}<span aria-hidden="true">{{ c[1] }}</span>{% endif %}
+    {{ c[2] }}{% if status == 'pending' and waiting_on %} · {{ waiting_on }}{% endif %}
+  </span>
+{% endmacro %}
+
+{% macro owner(o) %}
+  {% set m = {'vendor': 'bg-violet-50 text-violet-800 ring-violet-200', 'procurement': 'bg-sky-50 text-sky-800 ring-sky-200',
+              'finance': 'bg-teal-50 text-teal-800 ring-teal-200', 'system': 'bg-slate-100 text-slate-700 ring-slate-300'} %}
+  <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 {{ m.get(o, 'bg-slate-100 text-slate-700 ring-slate-200') }}">{{ o|capitalize }}</span>
+{% endmacro %}
+
+{% macro mode(m) %}
+  {% set labels = {'declared': 'Typed by vendor', 'document': 'Document', 'computed': 'Calculated', 'dataset': 'Reference data', 'live': 'Live registry', 'assisted': 'Manual check', 'sandbox': 'Test data', 'recorded': 'Test data', 'derived_from_gst': 'GST registry'} %}
+  {% set cls = {'live': 'bg-emerald-50 text-emerald-800 ring-emerald-200', 'assisted': 'bg-blue-50 text-blue-800 ring-blue-200',
+                'document': 'bg-violet-50 text-violet-800 ring-violet-200', 'declared': 'bg-slate-100 text-slate-700 ring-slate-200',
+                'computed': 'bg-slate-100 text-slate-700 ring-slate-200', 'dataset': 'bg-teal-50 text-teal-800 ring-teal-200',
+                'sandbox': 'bg-orange-50 text-orange-800 ring-orange-300', 'recorded': 'bg-orange-50 text-orange-800 ring-orange-300',
+                'derived_from_gst': 'bg-teal-50 text-teal-800 ring-teal-200'} %}
+  {% if m %}<span class="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 {{ cls.get(m, 'bg-slate-100 text-slate-700 ring-slate-200') }}">{{ labels.get(m, m|replace('_', ' ')|capitalize) }}</span>{% endif %}
+{% endmacro %}
+
+{% macro icon(result) %}
+  {% set m = {'pass': ('bg-emerald-100 text-emerald-700', '✓', 'Passed'), 'note': ('bg-emerald-100 text-emerald-700', '✓', 'Passed with an explanation'),
+              'flag': ('bg-amber-100 text-amber-800', '!', 'Flagged'), 'wait': ('bg-amber-100 text-amber-800', '…', 'Waiting'),
+              'reject': ('bg-rose-100 text-rose-700', '✕', 'Rejected'), 'skip': ('bg-slate-100 text-slate-500', '–', 'Skipped'), 'info': ('bg-slate-100 text-slate-500', 'i', 'Information')} %}
+  {% set c = m.get(result, m['info']) %}
+  <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold {{ c[0] }}" title="{{ c[2] }}" aria-label="{{ c[2] }}">{{ c[1] }}</span>
+{% endmacro %}
+
+{# Round status mark: always an icon, never colour alone. kind: ok | bad | unclear | missing | proprietor | other #}
+{% macro mark(kind, size='h-6 w-6') %}
+  {% set cfg = {'ok': ('bg-emerald-50 text-emerald-600 ring-emerald-200', 'M5 12.5l4.5 4.5L19 7.5', 'Agrees'),
+                'bad': ('bg-rose-50 text-rose-600 ring-rose-200', 'M7.5 7.5l9 9M16.5 7.5l-9 9', 'Differs'),
+                'unclear': ('bg-amber-50 text-amber-600 ring-amber-200', 'M9.6 9.2a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7M12 17h.01', 'Unclear'),
+                'missing': ('bg-slate-50 text-slate-400 ring-slate-200', 'M8 12h8', 'Not shown'),
+                'proprietor': ('bg-sky-50 text-sky-600 ring-sky-200', 'M12 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 19a6 6 0 0 1 12 0', "Proprietor's own name"),
+                'other': ('bg-amber-50 text-amber-600 ring-amber-200', 'M12 8v5M12 16.5h.01', 'Another party')} %}
+  {% set c = cfg.get(kind, cfg['missing']) %}
+  <span class="inline-flex {{ size }} shrink-0 items-center justify-center rounded-full ring-1 {{ c[0] }}" title="{{ c[2] }}" role="img" aria-label="{{ c[2] }}"><svg class="h-[55%] w-[55%]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ c[1] }}"/></svg></span>
+{% endmacro %}
+
+{# Status pill with a dot. kind: ok | bad | warn | neutral | info #}
+{% macro pill(kind, text) %}
+  {% set cls = {'ok': ('bg-emerald-50 text-emerald-800 ring-emerald-200', 'bg-emerald-500'), 'bad': ('bg-rose-50 text-rose-800 ring-rose-200', 'bg-rose-500'),
+                'warn': ('bg-amber-50 text-amber-900 ring-amber-200', 'bg-amber-500'), 'neutral': ('bg-slate-50 text-slate-600 ring-slate-200', 'bg-slate-300'),
+                'info': ('bg-sky-50 text-sky-800 ring-sky-200', 'bg-sky-500')} %}
+  {% set c = cls.get(kind, cls['neutral']) %}
+  <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ c[0] }}"><span class="h-1.5 w-1.5 rounded-full {{ c[1] }}"></span>{{ text }}</span>
+{% endmacro %}
+
+{% macro srcdot(state) %}
+  {% set cls = {'live': 'bg-emerald-500', 'dataset': 'bg-teal-500', 'assisted': 'bg-blue-500', 'sandbox': 'bg-orange-500', 'not configured': 'bg-slate-300', 'simulated outage': 'bg-rose-500'} %}
+  <span class="inline-block h-2 w-2 rounded-full {{ cls.get(state, 'bg-slate-300') }}"></span>
+{% endmacro %}

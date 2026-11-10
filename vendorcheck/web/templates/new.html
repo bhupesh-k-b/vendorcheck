@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% block title %}New submission{% endblock %}
+{% block content %}
+{% macro field(name, label, placeholder='', hint=True, extra='', key='', include='') %}
+  {% set k = key or name %}
+  <div>
+    <label for="f-{{ k }}" class="block text-sm font-medium text-slate-700">{{ label }}</label>
+    <input id="f-{{ k }}" name="{{ name }}" x-model="fields.{{ name }}" placeholder="{{ placeholder }}" autocomplete="off" {{ extra|safe }}
+           {% if hint %}data-check hx-get="/api/check/{{ name }}" hx-trigger="keyup changed delay:300ms, change" hx-target="#chk-{{ k }}" hx-swap="innerHTML" {% if include %}hx-include="{{ include }}"{% endif %}{% endif %}
+           class="mt-1.5 block w-full rounded-lg border-slate-300 text-sm placeholder:text-slate-400 {{ 'mono' if name in ['gstin', 'pan', 'cin', 'ifsc', 'bank_account', 'bank_account_confirm', 'udyam_number', 'tax_id', 'iban', 'swift', 'routing_code'] }}">
+    <p id="chk-{{ k }}" class="mt-1 min-h-[1.1rem] text-xs" aria-live="polite"></p>
+  </div>
+{% endmacro %}
+{% macro select(name, label, options) %}
+  <div>
+    <label for="f-{{ name }}" class="block text-sm font-medium text-slate-700">{{ label }}</label>
+    <select id="f-{{ name }}" name="{{ name }}" x-model="fields.{{ name }}" class="mt-1.5 block w-full rounded-lg border-slate-300 text-sm"><option value="">Select…</option>{% for o in options %}<option>{{ o }}</option>{% endfor %}</select>
+  </div>
+{% endmacro %}
+{% set groups = [('India', ['zoho', 'munitions', 'infosys', 'eternal', 'eternal_old', 'tcs', 'zoho_duplicate', 'zoho_lookalike', 'zoho_bank_change']),
+                 ('International', ['us_vendor', 'eu_vendor', 'wrong_country', 'eu_wrong_iban']),
+                 ('Document packs', ['munitions_form', 'rmc1_infosys', 'kaveri_complete', 'kaveri_clean', 'kaveri_messy', 'kaveri_holder_mismatch', 'mehta_separate', 'orchid_wrong', 'lakeview_pack', 'lakeview_indian_id', 'rheinland_pack'])] %}
+
+<form method="post" action="/submit" enctype="multipart/form-data" x-data="newForm(JSON.parse(document.getElementById('examples-data').textContent))" @submit="busy = true" class="mx-auto max-w-4xl">
+  <script type="application/json" id="examples-data">{{ examples_json|safe }}</script>
+  <script type="application/json" id="prefill-data">{{ prefill_json|safe }}</script>
+
+  <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight text-slate-900">New submission</h1>
+      <p class="mt-1 text-sm text-slate-500">Upload the vendor's documents, enter what you have, or both. Checks start as soon as you submit.</p>
+    </div>
+    <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+      <button type="button" id="sample-menu-btn" @click="open = !open" class="btn btn-ghost" aria-haspopup="true" :aria-expanded="open">
+        <svg class="h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg>
+        Load a sample
+        <svg class="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div x-show="open" x-cloak x-transition.origin.top.right class="absolute right-0 z-30 mt-2 max-h-[70vh] w-[22rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+        {% for title, keys in groups %}
+          <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ title }}</p>
+          {% for key in keys if key in examples %}
+            <button type="button" data-example="{{ key }}" @click="use('{{ key }}'); open = false" title="{{ examples[key].note }}"
+                    class="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-accent-50 hover:text-accent-800">{{ examples[key].label }}</button>
+          {% endfor %}
+        {% endfor %}
+        <p class="border-t border-slate-100 px-3 pb-1 pt-2 text-[11px] text-slate-400">Samples use public company data or clearly fictional specimens.</p>
+      </div>
+    </div>
+  </div>
+
+  <div x-show="note" x-cloak class="mb-5 flex items-start justify-between gap-3 rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800" role="status">
+    <p x-text="note"></p><button type="button" class="shrink-0 text-accent-600 hover:text-accent-800" @click="note = ''" aria-label="Dismiss">✕</button>
+  </div>
+
+  <div class="space-y-5">
+    <section class="card card-pad" aria-labelledby="docs-h">
+      <h2 id="docs-h" class="section-title">Documents</h2>
+      <p class="section-sub">PDFs, scans or phone photos. One combined PDF or separate files both work.</p>
+      <label class="dropzone mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 px-6 py-9 text-center transition hover:border-accent-500 hover:bg-accent-50/40"
+             :class="drag ? 'drag' : ''" @dragover.prevent="drag = true" @dragleave.prevent="drag = false" @drop.prevent="drag = false; drop($event)">
+        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-accent-100 text-accent-600"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+        <span class="mt-3 text-sm font-semibold text-slate-900">Drop files here, or <span class="text-accent-700">browse</span></span>
+        <span class="mt-1 text-xs text-slate-500">PDF, JPG, PNG, HEIC, WebP</span>
+        <input x-ref="files" type="file" name="files" multiple accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.tif,.tiff,image/*,application/pdf" class="sr-only" @change="refresh()">
+      </label>
+      <ul class="mt-3 flex flex-wrap gap-2" aria-live="polite">
+        <template x-for="f in names" :key="f"><li class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"><svg class="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/></svg><span x-text="f"></span></li></template>
+        <template x-for="s in samples.split(',').filter(Boolean)" :key="s"><li class="inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-3 py-1 text-xs font-medium text-accent-800"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/></svg><span x-text="s"></span><span class="text-accent-500">sample</span></li></template>
+      </ul>
+      <input type="hidden" name="sample_files" :value="samples">
+      <p class="mt-3 text-xs text-slate-400">Upload business documents only. Do not upload Aadhaar or other personal ID.</p>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="reg-h">
+      <h2 id="reg-h" class="section-title">Business and tax registration</h2>
+      <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
+        <div>
+          <label for="f-country" class="block text-sm font-medium text-slate-700">Country</label>
+          <select id="f-country" name="country" x-model="fields.country" class="mt-1.5 block w-full rounded-lg border-slate-300 text-sm"
+                  @change="$nextTick(() => document.querySelectorAll('[data-check]').forEach(el => el.dispatchEvent(new Event('change', { bubbles: true }))))">
+            <option value="IN">India</option>
+            {% for code, nm in countries|dictsort(by='value') if code != 'IN' %}<option value="{{ code }}">{{ nm }}</option>{% endfor %}
+            <option value="XX">Other (not listed)</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500" x-show="fields.country !== 'IN'" x-cloak>Outside India, tax IDs and bank details are format-checked, then confirmed by a person.</p>
+        </div>
+        {{ field('legal_name', 'Legal business name', 'As registered', hint=False) }}
+
+        <fieldset class="contents" x-show="fields.country === 'IN'" :disabled="fields.country !== 'IN'">
+          {{ field('gstin', 'GSTIN', '15 characters') }}
+          {{ field('pan', 'PAN', '10 characters') }}
+          {{ field('cin', 'CIN (companies)', '21 characters') }}
+          <div>
+            <span class="block text-sm font-medium text-slate-700">MSME</span>
+            <div class="mt-2.5 flex gap-5 text-sm"><label class="flex items-center gap-2"><input type="radio" name="msme" value="no" checked x-model="msme" class="text-accent-600"> No</label>
+              <label class="flex items-center gap-2"><input type="radio" name="msme" value="yes" x-model="msme" class="text-accent-600"> Yes</label></div>
+          </div>
+          <div x-show="msme === 'yes'" x-cloak class="md:col-span-2">{{ field('udyam_number', 'Udyam number', 'UDYAM-XX-00-0000000') }}</div>
+        </fieldset>
+        <fieldset class="contents" x-show="fields.country !== 'IN'" x-cloak :disabled="fields.country === 'IN'">
+          {{ field('tax_id', 'Tax ID', 'EIN, VAT number, ABN…', include='[name=country]') }}
+        </fieldset>
+      </div>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="bank-h">
+      <h2 id="bank-h" class="section-title">Bank details</h2>
+      <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
+        <fieldset class="contents" x-show="fields.country === 'IN'" :disabled="fields.country !== 'IN'">
+          {{ field('bank_account', 'Account number', '9–18 digits', key='in-acct', include='[name=bank_account],[name=bank_account_confirm]') }}
+          {{ field('bank_account_confirm', 'Confirm account number', 'Type it again', include='[name=bank_account],[name=bank_account_confirm]') }}
+          {{ field('ifsc', 'IFSC', 'e.g. HDFC0000001') }}
+          {{ field('account_holder', 'Account holder name', 'Name on the bank account', hint=False, key='in-holder') }}
+        </fieldset>
+        <fieldset class="contents" x-show="fields.country !== 'IN'" x-cloak :disabled="fields.country === 'IN'">
+          {{ field('iban', 'IBAN', 'Where the country uses one') }}
+          {{ field('bank_account', 'Account number', 'If no IBAN', hint=False, key='fx-acct') }}
+          {{ field('routing_code', 'Routing number or sort code', 'US ABA, UK sort code', include='[name=country]') }}
+          {{ field('swift', 'SWIFT / BIC', '8 or 11 characters') }}
+          {{ field('account_holder', 'Account holder name', 'Name on the bank account', hint=False, key='fx-holder') }}
+        </fieldset>
+      </div>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="contact-h">
+      <h2 id="contact-h" class="section-title">Contact</h2>
+      <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-3">
+        {{ field('contact_name', 'Name', hint=False) }}
+        {{ field('contact_email', 'Email', hint=False) }}
+        {{ field('contact_phone', 'Phone', hint=False) }}
+      </div>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="int-h">
+      <h2 id="int-h" class="section-title">Internal setup</h2>
+      <p class="section-sub">Required before approval. Configured payment terms must equal the negotiated terms.</p>
+      <div class="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-3">
+        {{ select('vendor_type', 'Goods or services', ['goods', 'services', 'goods and services']) }}
+        {{ select('expense_category', 'Expense category', ['Raw materials', 'Components & spares', 'Software & IT services', 'Professional fees', 'Logistics & freight', 'Facilities & maintenance', 'Marketing & events', 'Capital equipment', 'Other']) }}
+        {{ select('department_owner', 'Department owner', ['Procurement', 'Finance', 'IT', 'Operations', 'Manufacturing', 'HR', 'Admin', 'Sales & Marketing']) }}
+        {{ field('negotiated_terms', 'Negotiated payment terms', 'e.g. Net 45', hint=False) }}
+        {{ field('system_terms', 'Terms configured in the system', 'e.g. 45', hint=False) }}
+      </div>
+    </section>
+  </div>
+
+  <div class="mt-6 flex items-center justify-end gap-3">
+    <a href="/" class="btn btn-ghost">Cancel</a>
+    <button type="submit" :disabled="busy" class="btn btn-primary px-6 disabled:opacity-60" id="submit-btn">Submit for verification</button>
+  </div>
+</form>
+
+<script>
+  function newForm(examples) {
+    const blank = { vendor_type: '', expense_category: '', department_owner: '', negotiated_terms: '', system_terms: '', country: 'IN', legal_name: '', gstin: '', pan: '', cin: '', tax_id: '', iban: '', swift: '', routing_code: '', bank_account: '', bank_account_confirm: '', ifsc: '', account_holder: '', contact_name: '', contact_email: '', contact_phone: '', udyam_number: '' };
+    const prefill = JSON.parse(document.getElementById('prefill-data').textContent);
+    return {
+      examples, fields: { ...blank, ...prefill }, samples: '', note: '', picked: '', names: [], drag: false, busy: false, msme: 'no',
+      init() { if (Object.keys(prefill).length) { this.note = 'Prefilled from the test bench.'; this.$nextTick(() => this.recheck()); } },
+      recheck() { document.querySelectorAll('[data-check]').forEach(el => el.dispatchEvent(new Event('change', { bubbles: true }))); },
+      use(key) {
+        const e = this.examples[key];
+        this.fields = { ...blank, ...e.fields };
+        this.samples = (e.samples || []).join(',');
+        this.note = e.note; this.picked = key;
+        this.msme = this.fields.udyam_number ? 'yes' : 'no';
+        this.$nextTick(() => this.recheck());
+      },
+      refresh() { this.names = Array.from(this.$refs.files.files).map(f => f.name); },
+      drop(ev) { this.$refs.files.files = ev.dataTransfer.files; this.refresh(); },
+    };
+  }
+</script>
+{% endblock %}

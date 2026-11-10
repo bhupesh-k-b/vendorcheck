@@ -1,0 +1,17 @@
+{% import '_macros.html' as m %}
+{% if form_state %}
+<section class="mt-8" id="form-notice" aria-label="Typed form">
+  <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm">
+    {{ m.mark('other', 'h-6 w-6') }}
+    <div>
+      {% if form_state.state == 'empty' %}
+        <p class="font-semibold text-amber-900">The typed form was not filled in</p>
+        <p class="mt-0.5 text-slate-700">{% if files %}Details were read from the attached documents only, so there is no typed entry to compare them with.{% else %}Nothing was typed and no documents were attached.{% endif %}</p>
+      {% else %}
+        <p class="font-semibold text-amber-900">The typed form is incomplete</p>
+        <p class="mt-0.5 text-slate-700">Not filled in: {{ form_state.missing|join(', ') }}.{% if files %} These were taken from the documents where they could be read.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}

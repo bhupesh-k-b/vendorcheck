@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your vendor registration · VendorCheck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] }, colors: { accent: { 50: '#eef2ff', 100: '#e0e7ff', 600: '#4f46e5', 700: '#4338ca' } } } } }</script>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="bg-[#f6f7f9] font-sans text-slate-800 antialiased" style="font-size:16px">
+<div class="mx-auto max-w-xl px-5 py-10">
+  <p class="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-slate-900"><span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent-600 text-white"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></span>VendorCheck</p>
+  <div class="card mt-6 p-7">
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Hello, {{ case.display_name }}</h1>
+    {% if sent == '1' %}<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">Thank you. We received your update and are checking it now. Please refresh this page in a few seconds.</div>{% endif %}
+    {% if sent == 'none' %}<div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">Please fill in at least one item or attach a file.</div>{% endif %}
+    {% if status == 'running' %}<p class="mt-3 text-slate-600">We are checking your details right now. Please refresh in a moment.</p>
+    {% else %}
+    <p class="mt-3 text-lg text-slate-700">{{ msg.intro or 'Your details are with our team.' }}</p>
+
+    {% if msg['items'] %}
+      <p class="mt-6 text-sm font-semibold text-slate-900">What we need from you</p>
+      <ol class="mt-2 list-decimal space-y-3 pl-5 text-slate-800">{% for i in msg['items'] %}<li>{{ i.text }}</li>{% endfor %}</ol>
+      <form method="post" enctype="multipart/form-data" class="mt-6 space-y-4 border-t border-slate-100 pt-6">
+        {% for f in msg.fields %}
+          <div><label for="p-{{ f }}" class="block text-sm font-medium text-slate-700">{{ labels[f] }}</label>
+            <input id="p-{{ f }}" name="{{ f }}" autocomplete="off" required class="mt-1.5 block w-full rounded-lg border-slate-300 {{ 'font-mono' if f in ['gstin', 'pan', 'cin', 'ifsc', 'bank_account', 'bank_account_confirm', 'udyam_number'] }}"></div>
+        {% endfor %}
+        {% if msg.upload %}<div><label for="p-files" class="block text-sm font-medium text-slate-700">Upload the document</label>
+          <input id="p-files" type="file" name="files" multiple accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp" class="mt-1.5 block w-full text-sm"></div>{% endif %}
+        <button class="btn btn-primary px-6 py-2.5">Submit</button>
+        <p class="text-xs text-slate-500">Only the items above are needed. Everything else you sent stays as it was.</p>
+      </form>
+    {% endif %}
+    {% endif %}
+  </div>
+  <p class="mt-6 text-center text-xs text-slate-400">This page shows only your own information.</p>
+</div>
+</body>
+</html>

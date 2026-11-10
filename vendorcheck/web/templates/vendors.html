@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Vendors{% endblock %}
+{% block content %}
+<div><h1 class="text-2xl font-semibold tracking-tight text-slate-900">Vendors</h1><p class="mt-1 text-sm text-slate-500">Approved vendor master records.</p></div>
+<div class="card mt-6 overflow-hidden"><div class="overflow-x-auto"><table class="min-w-full text-sm">
+  <thead class="text-left text-xs text-slate-500"><tr class="border-b border-slate-100"><th class="px-5 py-3 font-medium">Code</th><th class="px-5 py-3 font-medium">Legal name</th><th class="px-5 py-3 font-medium">Tax ID</th><th class="px-5 py-3 font-medium">Bank account</th><th class="px-5 py-3 font-medium">Status</th><th class="px-5 py-3 font-medium">Next re-verification</th></tr></thead>
+  <tbody class="divide-y divide-slate-100">{% for v in vendors %}{% set r = v.record %}
+    <tr class="cursor-pointer hover:bg-slate-50" onclick="location.href='/vendors/{{ v.vendor_code }}'"><td class="mono px-5 py-3.5 font-semibold"><a href="/vendors/{{ v.vendor_code }}" class="text-accent-700">{{ v.vendor_code }}</a></td><td class="px-5 py-3.5 font-medium text-slate-900">{{ v.legal_name }}</td>
+      <td class="px-5 py-3.5">{{ v.pan|mask_ids }}</td>
+      <td class="px-5 py-3.5">{% for b in r.bank_accounts if b.status == 'active' %}{{ b.account|mask_ids }}{% endfor %}</td>
+      <td class="px-5 py-3.5"><span class="inline-flex items-center gap-1.5 text-xs font-semibold {{ 'text-emerald-700' if v.status == 'active' else 'text-rose-700' }}"><span class="h-2 w-2 rounded-full {{ 'bg-emerald-500' if v.status == 'active' else 'bg-rose-500' }}"></span>{{ 'Active' if v.status == 'active' else 'Blocked' }}</span></td><td class="px-5 py-3.5 text-slate-600">{{ r.next_reverify }}</td></tr>
+  {% else %}<tr><td colspan="6" class="px-5 py-16 text-center"><p class="font-medium text-slate-800">No vendors yet.</p><p class="mt-1 text-sm text-slate-500">Approved submissions appear here.</p></td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

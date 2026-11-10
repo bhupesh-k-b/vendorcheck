@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <div><h1 class="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1><p class="mt-1 text-sm text-slate-500">Vendor submissions and who needs to act next.</p></div>
+  <a href="/new" class="btn btn-primary"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New submission</a>
+</div>
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="card card-pad"><p class="text-xs font-medium text-slate-500">Submissions</p><p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ kpi.total }}</p>
+    <p class="mt-1 text-xs text-slate-400">Median time to decision {{ kpi.median_ttd|dur if kpi.median_ttd is not none else '—' }}</p></div>
+  <div class="card card-pad"><p class="flex items-center gap-2 text-xs font-medium text-slate-500"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Approved</p><p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ kpi.approved }}</p></div>
+  <div class="card card-pad"><p class="flex items-center gap-2 text-xs font-medium text-slate-500"><span class="h-2 w-2 rounded-full bg-amber-500"></span>Pending</p><p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ kpi.pending }}</p>
+    {% if kpi.pending_by %}<p class="mt-1 text-xs text-slate-400">{% for o, n in kpi.pending_by.items() if n %}{{ o|capitalize }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}</div>
+  <div class="card card-pad"><p class="flex items-center gap-2 text-xs font-medium text-slate-500"><span class="h-2 w-2 rounded-full bg-rose-500"></span>Rejected</p><p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ kpi.rejected }}</p></div>
+</div>
+
+<div class="card mt-6 overflow-hidden">
+  <form method="get" class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3.5">
+    <input name="q" value="{{ f.q }}" placeholder="Search vendor, GSTIN or code" aria-label="Search" class="w-64 rounded-lg border-slate-300 text-sm placeholder:text-slate-400">
+    <select name="status" aria-label="Status" class="rounded-lg border-slate-300 text-sm" onchange="this.form.submit()">
+      <option value="">All statuses</option>{% for s in ['approved', 'pending', 'rejected', 'running'] %}<option value="{{ s }}" {{ 'selected' if f.status == s }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    <select name="waiting" aria-label="Waiting on" class="rounded-lg border-slate-300 text-sm" onchange="this.form.submit()">
+      <option value="">Waiting on anyone</option>{% for s in ['vendor', 'procurement', 'finance', 'system'] %}<option value="{{ s }}" {{ 'selected' if f.waiting == s }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    <button class="btn btn-ghost">Search</button>
+    {% if f.status or f.waiting or f.q %}<a href="/" class="text-sm text-slate-500 hover:text-slate-800">Clear</a>{% endif %}
+  </form>
+  <div class="overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="text-left text-xs font-medium text-slate-500">
+      <tr class="border-b border-slate-100"><th class="px-4 py-3 font-medium">Vendor</th><th class="px-4 py-3 font-medium">Tax ID</th><th class="px-4 py-3 font-medium">Status</th><th class="px-4 py-3 font-medium">Outcome</th><th class="px-4 py-3 font-medium">Runs</th><th class="px-4 py-3 font-medium">Last run</th><th class="whitespace-nowrap px-4 py-3 font-medium">Decision time</th></tr></thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for r in rows %}
+        {% set c = r.case %}
+        <tr class="cursor-pointer hover:bg-slate-50" onclick="location.href='/cases/{{ c.id }}'">
+          <td class="px-4 py-3.5"><a href="/cases/{{ c.id }}" class="font-semibold text-slate-900 hover:text-accent-700">{{ c.display_name }}</a>
+            <div class="mt-0.5 text-xs text-slate-500">{% if c.vendor_code %}{{ c.vendor_code }} · {% endif %}Version {{ r.versions }}{% if c.update_of %} · update to {{ c.update_of }}{% endif %}
+              {% if not r.docs %} · <span class="font-medium text-amber-700">No documents</span>{% endif %}
+              {% if r.form %} · <span class="font-medium text-amber-700">{{ 'Form not filled' if r.form.state == 'empty' else 'Form incomplete' }}</span>{% endif %}</div></td>
+          <td class="whitespace-nowrap px-4 py-3.5">{{ r.gstin|mask_ids or '—' }}{% if r.country %} <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">{{ r.country }}</span>{% endif %}</td>
+          <td class="px-4 py-3.5">{{ m.chip(c.status) }}</td>
+<td class="min-w-[14rem] max-w-[22rem] px-4 py-3.5 text-slate-600" title="{{ c.reason }}"><span class="line-clamp-2">{{ (c.reason or '—')|replace('Pending: ', '')|mask_ids|upfirst }}</span></td>
+          <td class="px-4 py-3.5 text-slate-600">{{ r.runs }}</td>
+          <td class="whitespace-nowrap px-4 py-3.5 text-slate-600">{% if r.run %}{{ r.run.started_at|ist }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3.5 text-slate-600">{{ r.tta|dur if r.tta is not none else '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="px-5 py-16 text-center">
+          <p class="text-base font-medium text-slate-800">{% if f.status or f.waiting or f.q %}No submissions match these filters.{% else %}No submissions yet.{% endif %}</p>
+          <p class="mt-1 text-sm text-slate-500">{% if f.status or f.waiting or f.q %}<a href="/" class="underline">Clear filters</a>{% else %}Create a submission to run the first verification.{% endif %}</p>
+          {% if not (f.status or f.waiting or f.q) %}<a href="/new" class="btn btn-primary mt-5">New submission</a>{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

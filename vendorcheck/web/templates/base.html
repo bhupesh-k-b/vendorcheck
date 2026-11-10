@@ -1,0 +1,99 @@
+{% import '_macros.html' as m %}
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}VendorCheck{% endblock %} · VendorCheck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'] },
+      colors: { accent: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3' } } } } }
+  </script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js"></script>
+</head>
+<body class="h-full bg-[#f6f7f9] font-sans text-[15px] text-slate-800 antialiased" x-data="{ reveal: true, srcOpen: false }" :class="reveal ? 'reveal' : ''">
+{% set icons = {
+  'dash': '<path d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z"/>',
+  'new': '<path d="M12 5v14M5 12h14"/>',
+  'queue': '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  'vendors': '<path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-6h6v6"/>',
+  'bench': '<path d="M9 3h6M10 3v6l-5 9a1 1 0 0 0 .9 1.5h12.2a1 1 0 0 0 .9-1.5l-5-9V3"/>',
+  'settings': '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>'} %}
+{% macro nav(href, label, key, on) %}
+  <a href="{{ href }}" class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium {{ 'bg-accent-50 text-accent-700' if on else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}" {% if on %}aria-current="page"{% endif %}>
+    <svg class="h-[18px] w-[18px] shrink-0 {{ 'text-accent-600' if on else 'text-slate-400 group-hover:text-slate-600' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ icons[key]|safe }}</svg>{{ label }}
+  </a>
+{% endmacro %}
+<div class="flex min-h-full">
+  <aside class="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+    <a href="/" class="flex items-center gap-2.5 px-5 py-5">
+      <span class="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent-600 text-white shadow-sm"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></span>
+      <span class="text-[17px] font-semibold tracking-tight text-slate-900">VendorCheck</span>
+    </a>
+    <nav class="flex-1 space-y-6 px-3 pt-2" aria-label="Main">
+      <div class="space-y-0.5">
+        <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Workspace</p>
+        {{ nav('/', 'Dashboard', 'dash', path == '/' or path.startswith('/cases') or path.startswith('/runs')) }}
+        {{ nav('/new', 'New submission', 'new', path.startswith('/new')) }}
+        {{ nav('/queue', 'Review queue', 'queue', path.startswith('/queue')) }}
+        {{ nav('/vendors', 'Vendors', 'vendors', path.startswith('/vendors')) }}
+      </div>
+      <div class="space-y-0.5">
+        <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Administration</p>
+        {{ nav('/bench', 'Test bench', 'bench', path.startswith('/bench')) }}
+        {{ nav('/settings', 'Settings', 'settings', path.startswith('/settings')) }}
+      </div>
+    </nav>
+    <form method="post" action="/role" class="border-t border-slate-200 p-3">
+      <label for="role" class="sr-only">Signed in as</label>
+      <div class="flex items-center gap-3 rounded-lg px-2 py-1.5">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-sm font-semibold text-accent-700">{{ user.name[:1] }}</span>
+        <div class="min-w-0 flex-1">
+          <select id="role" name="role" onchange="this.form.submit()" class="w-full cursor-pointer appearance-none truncate border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 focus:ring-0">
+            {% for u in users %}<option value="{{ u.key }}" {{ 'selected' if u.key == user.key }}>{{ u.name }}</option>{% endfor %}
+          </select>
+          <p class="truncate text-xs text-slate-500">{{ user.title }}</p>
+        </div>
+        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 9 4-4 4 4M16 15l-4 4-4-4"/></svg>
+      </div>
+    </form>
+  </aside>
+
+  <div class="min-w-0 flex-1">
+    <header class="sticky top-0 z-30 flex items-center justify-end gap-2 border-b border-slate-200/80 bg-white/85 px-6 py-2.5 backdrop-blur">
+      {% set bad = sources|selectattr('state', 'equalto', 'not configured')|list|length + sources|selectattr('state', 'equalto', 'simulated outage')|list|length %}
+      <div class="relative" @click.outside="srcOpen = false">
+        <button type="button" @click="srcOpen = !srcOpen" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" aria-haspopup="true" :aria-expanded="srcOpen">
+          <span class="h-2 w-2 rounded-full {{ 'bg-amber-500' if bad else 'bg-emerald-500' }}"></span>{{ (bad ~ ' source' ~ ('s' if bad != 1 else '') ~ ' need attention') if bad else 'All sources connected' }}
+        </button>
+        <div x-show="srcOpen" x-cloak x-transition class="absolute right-0 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+          {% for s in sources %}
+            <div class="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-50" title="{{ s.detail }}">
+              <span class="flex items-center gap-2 font-medium text-slate-800">{{ m.srcdot(s.state) }}{{ s.name }}</span>
+              <span class="text-xs capitalize text-slate-500">{{ s.state }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <button type="button" @click="reveal = !reveal" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800" :title="reveal ? 'Hide identifiers' : 'Show full identifiers'" :aria-label="reveal ? 'Hide identifiers' : 'Show full identifiers'">
+        <svg x-show="reveal" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg x-show="!reveal" x-cloak class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 18 18M10.6 6.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6A17 17 0 0 0 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+      </button>
+    </header>
+
+    <main class="mx-auto max-w-[1400px] px-6 py-8 lg:px-10">
+      {% if flash %}<div class="mb-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status"><span class="font-bold">✓</span>{{ flash }}</div>{% endif %}
+      {% if error %}<div class="mb-5 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert"><span class="font-bold">!</span>{{ error }}</div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

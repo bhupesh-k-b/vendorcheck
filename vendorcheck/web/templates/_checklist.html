@@ -1,0 +1,49 @@
+{% import '_macros.html' as m %}
+{% if checklist %}
+{% set req = checklist|selectattr('required')|list %}
+{% set got = req|selectattr('state', 'equalto', 'found')|list|length %}
+{% set pct = ((100 * got / (req|length))|round|int) if req else 0 %}
+{% set none_given = req and (req|selectattr('state', 'equalto', 'not_provided')|list|length) == (req|length) %}
+<section class="mt-8" id="checklist" aria-labelledby="ck-h">
+  <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+    <div>
+      <h2 id="ck-h" class="section-title">Required documents</h2>
+      {% if none_given %}<p class="section-sub">No documents were provided</p>
+      {% else %}<p class="section-sub"><span class="font-semibold {{ 'text-emerald-700' if got == req|length else 'text-slate-800' }}">{{ got }} of {{ req|length }}</span> required documents found</p>{% endif %}
+    </div>
+    {% if not none_given %}
+    <div class="h-1.5 w-40 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" aria-label="Required documents found">
+      <div class="h-full rounded-full {{ 'bg-emerald-500' if got == req|length else 'bg-amber-500' }}" style="width: {{ pct }}%"></div>
+    </div>
+    {% endif %}
+  </div>
+  {% if none_given %}
+  <div class="mt-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm" id="no-documents">
+    {{ m.mark('other', 'h-6 w-6') }}
+    <div><p class="font-semibold text-amber-900">Documents were not provided</p>
+      <p class="mt-0.5 text-slate-700">This submission has typed details only. Nothing could be cross-checked against a document, so identifiers rest on the registry checks alone.</p></div>
+  </div>
+  {% endif %}
+  <ul class="card mt-3 divide-y divide-slate-100 overflow-hidden">
+    {% for r in checklist %}
+      {% set kind = {'found': 'ok', 'missing': 'bad', 'other_party': 'other'}.get(r.state, 'missing') %}
+      <li class="flex items-start gap-4 px-5 py-4 {{ 'bg-rose-50/40' if r.required and r.state == 'missing' }} {{ 'bg-amber-50/40' if r.state == 'other_party' }}">
+        <span class="mt-0.5">{{ m.mark(kind, 'h-7 w-7') }}</span>
+        <div class="min-w-0 flex-1">
+          <p class="font-medium leading-snug text-slate-900">{{ r.label }}</p>
+          <p class="mt-0.5 text-xs text-slate-500">{{ 'Required' if r.required else 'Not required' }} · {{ r.why }}</p>
+          {% if r.link %}<a href="{{ r.link[1] }}" target="_blank" rel="noopener" class="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:text-accent-800 hover:underline">{{ r.link[0] }}<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>{% endif %}
+        </div>
+        <div class="shrink-0 text-right">
+          {% if r.state == 'found' %}{{ m.pill('ok', 'Found') }}
+          {% elif r.state == 'missing' %}{{ m.pill('bad', 'Missing') }}
+          {% elif r.state == 'other_party' %}{{ m.pill('warn', 'Wrong party') }}
+          {% elif r.state == 'not_provided' %}{{ m.pill('neutral', 'Not provided') }}
+          {% else %}{{ m.pill('neutral', 'Not required') }}{% endif %}
+          {% if r.where %}<p class="mono mt-1.5 max-w-[15rem] break-words text-[11px] leading-snug text-slate-400">{{ r.where }}</p>{% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

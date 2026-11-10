@@ -1,0 +1,31 @@
+{% import '_macros.html' as m %}
+{% if links %}
+<section class="mt-8" aria-labelledby="vl-h" id="verify-links">
+  <h2 id="vl-h" class="section-title">Verify on the official sites</h2>
+  <p class="section-sub">Each identifier is copied for you when you open the official page.</p>
+  <ul class="card mt-3 divide-y divide-slate-100 overflow-hidden">
+    {% for l in links %}
+      {% set kind = {'ok': 'ok', 'bad': 'bad', 'none': 'missing'}[l.tone] %}
+      <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4" x-data="{ copied: false }">
+        {{ m.mark(kind, 'h-7 w-7') }}
+        <div class="w-16 shrink-0 text-sm font-semibold text-slate-900">{{ l.label }}</div>
+        <div class="mono min-w-[11rem] text-sm text-slate-800">{{ l.ident|mask_ids }}</div>
+        <div class="min-w-0 flex-1 basis-64">
+          <p class="text-sm {{ {'ok': 'text-emerald-800', 'bad': 'text-rose-800', 'none': 'text-slate-600'}[l.tone] }}">{{ l.status|mask_ids }}</p>
+          <p class="text-xs text-slate-400">{{ l.site }}</p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          {% if l.action %}<form method="post" action="{{ l.action }}" onsubmit="return confirm('Verify this PAN through the GST API? It costs about 5 credits.')"><button class="btn btn-primary !py-1.5 !text-xs" title="Live check: the PAN exists, its registered holder name and status. About 5 credits.">Verify via API · 5 credits</button></form>{% endif %}
+          {% if l.copy %}
+            <button type="button" class="btn btn-ghost !py-1.5 !text-xs" @click="navigator.clipboard.writeText('{{ l.ident }}').catch(() => {}); copied = true; window.open('{{ l.url }}', '_blank', 'noopener')">
+              <span x-text="copied ? 'Copied · opened' : 'Copy and open'"></span>
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></button>
+          {% else %}
+            <a class="btn btn-ghost !py-1.5 !text-xs" target="_blank" rel="noopener" href="{{ l.url }}">Open<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

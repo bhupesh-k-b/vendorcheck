@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Review queue{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <div><h1 class="text-2xl font-semibold tracking-tight text-slate-900">Review queue</h1><p class="mt-1 text-sm text-slate-500">Open items across all submissions. Items you can act on come first.</p></div>
+  <div class="flex gap-1.5 text-sm" role="group" aria-label="Filter by owner">
+    {% for o in ['', 'vendor', 'procurement', 'finance', 'system'] %}<a href="/queue{{ '?owner=' ~ o if o }}" class="rounded-full px-3.5 py-1.5 font-medium {{ 'bg-accent-600 text-white' if owner == o else 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50' }}">{{ o|capitalize or 'All' }}</a>{% endfor %}
+  </div>
+</div>
+<div class="card mt-6 overflow-hidden"><div class="overflow-x-auto"><table class="min-w-full text-sm">
+  <thead class="text-left text-xs text-slate-500"><tr class="border-b border-slate-100"><th class="px-5 py-3 font-medium">Open item</th><th class="px-5 py-3 font-medium">Vendor</th><th class="px-5 py-3 font-medium">Owner</th><th class="px-5 py-3 font-medium">State</th><th class="px-5 py-3 font-medium">Raised</th><th class="px-5 py-3"></th></tr></thead>
+  <tbody class="divide-y divide-slate-100">
+  {% for r in rows %}{% set t = r.task %}
+    <tr class="{{ 'bg-accent-50/40' if r.mine or r.approve }}"><td class="px-5 py-3.5"><span class="font-medium text-slate-900">{{ t.title|upfirst }}</span></td>
+      <td class="px-5 py-3.5"><a class="font-medium text-slate-800 hover:text-accent-700" href="/cases/{{ r.case.id }}">{{ r.case.display_name }}</a></td>
+      <td class="px-5 py-3.5">{{ m.owner(t.owner) }}</td>
+      <td class="px-5 py-3.5 text-slate-600">{% if t.status == 'resolved' %}Awaiting second approval{% else %}Open{% endif %}</td>
+      <td class="px-5 py-3.5 text-slate-500">{{ t.created_at|ist }}</td>
+      <td class="px-5 py-3.5 text-right">{% if r.mine or r.approve %}<a class="btn btn-primary !py-1.5 !text-xs" href="/cases/{{ r.case.id }}">{{ 'Approve' if r.approve else 'Review' }}</a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="px-5 py-16 text-center"><p class="font-medium text-slate-800">Nothing is waiting.</p><p class="mt-1 text-sm text-slate-500">Open items appear here as submissions are checked.</p></td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% endblock %}

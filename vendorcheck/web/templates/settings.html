@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+{% macro status_row(label, ok, on_text='Connected', off_text='Not configured') %}
+  <div class="flex items-center justify-between gap-4 py-3"><dt class="text-sm text-slate-700">{{ label }}</dt>
+    <dd class="inline-flex items-center gap-2 text-sm font-medium {{ 'text-slate-900' if ok else 'text-slate-400' }}"><span class="h-2 w-2 rounded-full {{ 'bg-emerald-500' if ok else 'bg-slate-300' }}"></span>{{ on_text if ok else off_text }}</dd></div>
+{% endmacro %}
+<div class="mx-auto max-w-3xl">
+<h1 class="text-2xl font-semibold tracking-tight text-slate-900">Settings</h1>
+<p class="mt-1 text-sm text-slate-500">Connections, policy and maintenance.</p>
+{% if result %}<div class="mt-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm" role="status">{{ result }}</div>{% endif %}
+
+<section class="card card-pad mt-6">
+  <h2 class="section-title">Connections</h2>
+  <p class="section-sub">Credentials are read from the server environment and never displayed.</p>
+  <dl class="mt-3 divide-y divide-slate-100">
+    {{ status_row('GST registry', cfg.GSTINAPI_KEY) }}
+    {{ status_row('Document reader', cfg.GEMINI_API_KEY) }}
+    {{ status_row('Bank account verification', cfg.CASHFREE, 'Connected (' ~ cfg.CASHFREE_ENV ~ ')', 'Manual confirmation by two people') }}
+    <div class="flex items-center justify-between gap-4 py-3"><dt class="text-sm text-slate-700">IFSC directory</dt><dd class="text-sm font-medium text-slate-900">{{ ifsc }}</dd></div>
+    <div class="flex items-center justify-between gap-4 py-3"><dt class="text-sm text-slate-700">GST credits remaining</dt><dd class="text-sm font-medium text-slate-900">{{ credits or '—' }}</dd></div>
+  </dl>
+  <form method="post" action="/settings/test-gst" class="mt-3"><button class="btn btn-ghost">Test GST connection</button></form>
+</section>
+
+{% macro toggle(name, label, hint, on) %}
+  <label class="flex cursor-pointer items-center justify-between gap-6 py-3.5">
+    <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">{{ label }}</span><span class="block text-xs text-slate-500">{{ hint }}</span></span>
+    <input type="checkbox" name="{{ name }}" class="peer sr-only" {{ 'checked' if on }}><span class="switch" aria-hidden="true"></span>
+  </label>
+{% endmacro %}
+{% macro number(name, label, hint, value, unit, lo, hi) %}
+  <label class="flex items-center justify-between gap-6 py-3.5">
+    <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">{{ label }}</span><span class="block text-xs text-slate-500">{{ hint }}</span></span>
+    <span class="flex shrink-0 items-center gap-2"><input type="number" name="{{ name }}" value="{{ value }}" min="{{ lo }}" max="{{ hi }}" required class="w-24 rounded-lg border-slate-300 text-right text-sm tabular-nums"><span class="w-12 text-xs text-slate-500">{{ unit }}</span></span>
+  </label>
+{% endmacro %}
+
+<section class="card mt-5 scroll-mt-20" id="policy">
+  <div class="flex flex-wrap items-start justify-between gap-3 px-6 pt-5">
+    <div><h2 class="section-title">Verification policy</h2>
+      <p class="section-sub">Change how strict the checks are. Every change applies from the next verification run.</p></div>
+    {% if policy_changed %}<span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">Last changed by {{ policy_changed }}</span>{% endif %}
+  </div>
+  <form method="post" action="/settings/policy" id="policy-form">
+    <div class="divide-y divide-slate-100 px-6">
+
+      <div class="py-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Name matching</p>
+        <div class="mt-3" x-data="{ v: {{ pol.name_match_threshold }} }">
+          <div class="flex items-center justify-between gap-6">
+            <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">How closely names must match</span><span class="block text-xs text-slate-500">Two company names count as the same at or above this similarity. Lower is more lenient.</span></span>
+            <span class="w-14 text-right text-lg font-semibold tabular-nums text-slate-900" x-text="v + '%'"></span>
+          </div>
+          <input type="range" min="50" max="100" step="1" x-model.number="v" class="mt-3 w-full accent-indigo-600" aria-label="Name match threshold">
+          <input type="hidden" name="name_match_threshold" :value="v">
+          <div class="mt-1 flex justify-between text-[11px] text-slate-400"><span>Lenient 50%</span><span>Strict 100%</span></div>
+        </div>
+        {{ toggle('rename_requires_person', 'A person must confirm every company rename', 'Off: a rename is approved with an explanation when the filing proves it.', pol.rename_requires_person) }}
+      </div>
+
+      <div class="py-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Documents and setup</p>
+        <fieldset class="mt-3">
+          <legend class="text-sm font-medium text-slate-900">Block approval when required documents are missing</legend>
+          <div class="mt-2 inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
+            {% for key, label in doc_modes.items() %}
+              <label class="cursor-pointer"><input type="radio" name="require_documents" value="{{ key }}" class="peer sr-only" {{ 'checked' if pol.require_documents == key }}>
+                <span class="block rounded-lg px-3.5 py-1.5 text-sm font-medium text-slate-600 transition peer-checked:bg-white peer-checked:text-slate-900 peer-checked:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-accent-500">{{ label }}</span></label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        {{ toggle('require_commercial_setup', 'Require internal setup before approval', 'Category, department owner and payment terms must be set, and configured terms must equal the negotiated terms.', pol.require_commercial_setup) }}
+      </div>
+
+      <div class="py-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accepted evidence</p>
+        <p class="mt-1 text-xs text-slate-500">What can satisfy each approval requirement. Tick at least one for each.</p>
+        <div class="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {% for key, (label, what, allowed) in reqs.items() %}
+            <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+              <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">{{ label }}</span><span class="block text-xs text-slate-500">{{ what }}</span></span>
+              <div class="flex flex-wrap gap-2">
+                {% for mode in allowed %}
+                  <label class="cursor-pointer"><input type="checkbox" name="req__{{ key }}__{{ mode }}" class="peer sr-only" {{ 'checked' if mode in pol.requirements[key] }}>
+                    <span class="block rounded-full px-3 py-1 text-xs font-medium ring-1 ring-slate-200 transition peer-checked:bg-accent-50 peer-checked:text-accent-800 peer-checked:ring-accent-500 peer-focus-visible:ring-2 text-slate-500">{{ evidence_label[mode] }}</span></label>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="py-3">
+        <p class="pt-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Timing</p>
+        <div class="divide-y divide-slate-100">
+          {{ number('recheck_company_status', 'Company status re-check', 'Days after approval before company status must be checked again when no official evidence was on file.', pol.recheck_days.company_status, 'days', 1, 365) }}
+          {{ number('recheck_advisory', 'Advisory re-check', 'Days until advisory conditions (for example a composition taxpayer) are reviewed.', pol.recheck_days.advisory, 'days', 1, 365) }}
+          {{ number('reverify_days', 'Vendor re-verification', 'Days until an approved vendor record must be verified again.', pol.reverify_days, 'days', 30, 3650) }}
+          {{ number('msme_payment_terms_days', 'MSME payment terms limit', 'Maximum payment terms for micro and small enterprises.', pol.msme_payment_terms_days, 'days', 1, 365) }}
+          {{ number('filing_gap_months', 'GST filing gap', 'Months of missing GST filings tolerated before it is flagged.', pol.filing_gap_months, 'months', 0, 12) }}
+        </div>
+      </div>
+
+      <div class="py-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Blocklist</p>
+        <p class="mt-1 text-xs text-slate-500">A vendor using any of these is rejected outright, and the vendor is never told why. One per line.</p>
+        <div class="mt-3 grid gap-4 sm:grid-cols-2">
+          <label class="block text-sm font-medium text-slate-700">PAN numbers
+            <textarea name="blocklist_pans" rows="4" placeholder="ABCDE1234F" class="mono mt-1.5 block w-full rounded-lg border-slate-300 text-sm">{{ pol.blocklist.pans|join('\n') }}</textarea></label>
+          <label class="block text-sm font-medium text-slate-700">Bank account numbers
+            <textarea name="blocklist_accounts" rows="4" placeholder="000000000000" class="mono mt-1.5 block w-full rounded-lg border-slate-300 text-sm">{{ pol.blocklist.accounts|join('\n') }}</textarea></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-b-[14px] border-t border-slate-100 bg-slate-50/70 px-6 py-4">
+      <button type="submit" form="restore-form" class="btn btn-ghost" onclick="return confirm('Restore every policy setting to its default?')">Restore defaults</button>
+      <button type="submit" class="btn btn-primary px-6" id="policy-save">Save policy</button>
+    </div>
+  </form>
+  <form method="post" action="/settings/policy/restore" id="restore-form"></form>
+</section>
+
+<section class="card card-pad mt-5">
+  <h2 class="section-title">Diagnostics</h2>
+  <p class="section-sub">Tools for testing resilience. Outages are simulated and never affect real vendor data.</p>
+  <form method="post" action="/settings/outage" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+    <input type="hidden" name="on" value="{{ '0' if outage else '1' }}">
+    <div><p class="text-sm font-medium text-slate-800">Simulate GST registry outage</p>
+      <p class="text-xs {{ 'font-semibold text-rose-700' if outage else 'text-slate-500' }}">{{ 'Active. GST calls fail (simulated).' if outage else 'Off. GST lookups behave normally.' }}</p></div>
+    <button class="btn {{ 'btn-ghost' if outage else 'btn-primary' }}" id="outage-btn">{{ 'Turn off' if outage else 'Turn on' }}</button>
+  </form>
+  <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+    <div><p class="text-sm font-medium text-slate-800">Reset data</p><p class="text-xs text-slate-500">Clears submissions, evidence, the vendor master and caches.</p></div>
+    <form method="post" action="/settings/reset" onsubmit="return confirm('Clear all submissions, the vendor master and caches?')"><button class="btn btn-ghost !border-rose-200 !text-rose-700 hover:!bg-rose-50" id="reset-btn">Reset data</button></form>
+  </div>
+</section>
+</div>
+{% endblock %}
