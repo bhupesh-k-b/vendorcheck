@@ -103,7 +103,7 @@ def case_rows(s: Session, status: str = "", waiting: str = "", q: str = "", sim:
 
 
 def kpis(s: Session) -> dict:
-    cases = list(s.exec(select(Case).where(Case.sim == False)).all())  # noqa: E712
+    cases = list(s.exec(select(Case)).all())
     pend = [c for c in cases if c.status == "pending"]
     ttd = [seconds_between(c.created_at, c.decided_at) for c in cases if c.decided_at]
     return {"total": len(cases), "approved": sum(c.status == "approved" for c in cases), "rejected": sum(c.status == "rejected" for c in cases),
