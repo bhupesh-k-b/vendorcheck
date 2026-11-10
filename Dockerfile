@@ -7,8 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
 
 WORKDIR /app
 COPY requirements.txt .
-# the browser-test and PDF-building tools are for development only
-RUN grep -viE '^(playwright|pytest|reportlab)' requirements.txt > requirements.run.txt && pip install -r requirements.run.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 # RBI bank directory, so IFSC checks work offline

@@ -10,3 +10,5 @@ screenshots/
 *.sqlite
 .DS_Store
 .claude/worktrees/
+.vercel
+.vercel/

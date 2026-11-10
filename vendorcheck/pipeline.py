@@ -7,6 +7,7 @@ from datetime import date
 
 from sqlmodel import Session, select
 
+from . import config
 from . import master as vm
 from .policy import disabled_fields
 from . import messages
@@ -43,7 +44,7 @@ def create_run(ctx, case_id: int, version_id: int, trigger: str = "submission") 
 
 def start_run(ctx, case_id: int, version_id: int, trigger: str = "submission", background: bool = True) -> int:
     run_id = create_run(ctx, case_id, version_id, trigger)
-    if background:
+    if background and not config.inline_runs():
         threading.Thread(target=execute_run, args=(ctx, run_id), daemon=True, name=f"run-{run_id}").start()
     else:
         execute_run(ctx, run_id)

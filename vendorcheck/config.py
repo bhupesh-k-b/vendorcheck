@@ -14,9 +14,11 @@ DB_URL = os.getenv("VENDORCHECK_DB", f"sqlite:///{DATA_DIR / 'vendorcheck.db'}")
 POLICY_PATH = Path(os.getenv("VENDORCHECK_POLICY", ROOT / "policy.yaml"))
 FIXTURE_DIR = ROOT / "fixtures"
 SAMPLES_DIR = ROOT / "samples"
-IFSC_PATH = DATA_DIR / "ifsc" / "IFSC.json"
-BANKNAMES_PATH = DATA_DIR / "ifsc" / "banknames.json"
-IFSC_META_PATH = DATA_DIR / "ifsc" / "meta.json"
+_BUNDLED_IFSC = ROOT / "vendor_data" / "ifsc"          # shipped with the code, so a read-only host still has the bank directory
+IFSC_DIR = Path(os.getenv("VENDORCHECK_IFSC_DIR") or (DATA_DIR / "ifsc" if (DATA_DIR / "ifsc" / "IFSC.json").exists() or not (_BUNDLED_IFSC / "IFSC.json").exists() else _BUNDLED_IFSC))
+IFSC_PATH = IFSC_DIR / "IFSC.json"
+BANKNAMES_PATH = IFSC_DIR / "banknames.json"
+IFSC_META_PATH = IFSC_DIR / "meta.json"
 
 
 # Keys a visitor pastes into Settings. Held in this process only: never written to disk, never rendered back.
@@ -75,9 +77,15 @@ def gstin_key() -> str: return env("GSTINAPI_KEY")
 def cashfree_id() -> str: return env("CASHFREE_CLIENT_ID")
 def cashfree_secret() -> str: return env("CASHFREE_CLIENT_SECRET")
 def cashfree_env() -> str: return env("CASHFREE_ENV", "sandbox")
+def inline_runs() -> bool:
+    """Serverless hosts freeze background threads once the response is sent, so a run executes inside the request instead."""
+    return env("VENDORCHECK_INLINE") == "1"
 def pacing_seconds() -> float: return float(env("VENDORCHECK_PACING_MS", "0") or 0) / 1000.0
 
 
 def ensure_dirs() -> None:
-    for d in (DATA_DIR, UPLOAD_DIR, CACHE_DIR, IFSC_PATH.parent):
-        d.mkdir(parents=True, exist_ok=True)
+    for d in (DATA_DIR, UPLOAD_DIR, CACHE_DIR, IFSC_DIR):
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
