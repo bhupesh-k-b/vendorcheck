@@ -24,7 +24,7 @@ class Case(SQLModel, table=True):
     decided_at: Optional[datetime] = None
     current_version: int = 1
     explanation: str = ""                                # "Approved with an explanation" text
-    sim: bool = False                                    # created by the test bench
+    sim: bool = False                                    # a simulated test case on a fictional vendor
     decision: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 

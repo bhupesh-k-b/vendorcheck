@@ -14,7 +14,7 @@ from . import messages
 from . import stages as S
 from .decide import decide
 from .models import Case, Evidence, Run, StageEvent, Task, Version, utcnow
-from .rules import FLAG, INFO, PASS, REJECT, WAIT, Check
+from .rules import INFO, PASS, REJECT, WAIT, Check
 from .storage import audit
 
 STAGES = [("intake", "Intake"), ("read", "Read"), ("validate", "Validate"), ("verify", "Verify"), ("reconcile", "Reconcile"),

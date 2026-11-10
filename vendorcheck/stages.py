@@ -5,7 +5,6 @@ Stages never decide a status (that is decide.py) and never invent data: a source
 produces a pending R20 check, never a pass."""
 import re
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any, Callable
 
 from sqlmodel import Session

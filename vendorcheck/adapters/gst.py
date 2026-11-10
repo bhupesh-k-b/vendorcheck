@@ -162,7 +162,7 @@ class GstApi:
 
 class RecordedGst:
     """Replays responses captured earlier (fixtures/gst/<GSTIN>.json). Mode `recorded`: shown as such,
-    and never satisfies approval for a real vendor. Used by the test bench and the tests."""
+    and never satisfies approval for a real vendor. Used by simulated test cases and the tests."""
 
     def __init__(self, fixtures: dict[str, dict] | None = None, directory: Path | None = None):
         self.fixtures = dict(fixtures or {})

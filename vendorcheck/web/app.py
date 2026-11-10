@@ -19,7 +19,7 @@ from .. import validators as v
 from ..adapters import ifsc as ifsc_adapter
 from ..context import build_adapters, default_ctx, sources_status
 from ..examples import EXAMPLES, SAMPLE_FILES
-from ..models import Case, Run, Task, VendorMaster, Version, utcnow
+from ..models import Case, Run, Task, VendorMaster, utcnow
 from ..reader import ReaderUnavailable
 from ..storage import allowed, store_bytes
 from ..workflow import USERS, WorkflowError, latest_version, user_of
@@ -43,6 +43,10 @@ ASSIST_FIELDS = {
     "pan": ["pan", "pan_status", "name_as_per_pan"],
     "taxid": ["tax_id", "legal_name", "status"],
 }
+
+
+MAX_FILE_MB = 15          # per uploaded file
+MAX_FILES = 25            # per submission
 
 
 def create_app(ctx=None) -> FastAPI:
@@ -146,7 +150,7 @@ def create_app(ctx=None) -> FastAPI:
             except ValueError:
                 pre = {}
         pol = C(request).policy
-        return render(request, "new.html", examples=EXAMPLES, examples_json=json.dumps(EXAMPLES).replace("</", "<\\/"), prefill_json=json.dumps(pre), countries=cn.COUNTRIES,
+        return render(request, "new.html", examples=EXAMPLES, examples_json=json.dumps(EXAMPLES).replace("</", "<\\/"), prefill_json=json.dumps(pre).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"), countries=cn.COUNTRIES,
                       details_on={k: policy_mod.detail_on(pol, k) for k in policy_mod.DETAIL_KEYS}, custom_details=policy_mod.custom_details(pol))
 
     @app.post("/submit")
@@ -159,7 +163,12 @@ def create_app(ctx=None) -> FastAPI:
             if getattr(up, "filename", ""):
                 if not allowed(up.filename):
                     return RedirectResponse(f"/new?error=File type of {up.filename} is not supported (PDF, PNG, JPG, HEIC, WebP, TIFF)", 303)
-                files.append(store_bytes(await up.read(), up.filename))
+                data = await up.read()
+                if len(data) > MAX_FILE_MB * 1024 * 1024:
+                    return RedirectResponse(f"/new?error={quote(up.filename + ' is larger than ' + str(MAX_FILE_MB) + ' MB')}", 303)
+                if len(files) >= MAX_FILES:
+                    return RedirectResponse(f"/new?error=Please attach at most {MAX_FILES} files", 303)
+                files.append(store_bytes(data, up.filename))
         for name in filter(None, (form.get("sample_files") or "").split(",")):
             if name in SAMPLE_FILES and (config.SAMPLES_DIR / name).exists():
                 files.append(store_bytes((config.SAMPLES_DIR / name).read_bytes(), name))
@@ -390,7 +399,12 @@ def create_app(ctx=None) -> FastAPI:
             return HTMLResponse("This link is not valid.", 404)
         form = await request.form()
         updates = {k: (form.get(k) or "").strip() for k in field_labels(C(request)) if (form.get(k) or "").strip()}
-        files = [store_bytes(await up.read(), up.filename) for up in form.getlist("files") if getattr(up, "filename", "") and allowed(up.filename)]
+        files = []
+        for up in form.getlist("files"):
+            if getattr(up, "filename", "") and allowed(up.filename) and len(files) < MAX_FILES:
+                data = await up.read()
+                if len(data) <= MAX_FILE_MB * 1024 * 1024:
+                    files.append(store_bytes(data, up.filename))
         if not updates and not files:
             return RedirectResponse(f"/v/{token}?sent=none", 303)
         ctx = C(request)

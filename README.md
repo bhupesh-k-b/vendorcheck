@@ -31,7 +31,7 @@ Keys are held in server memory only: never written to disk, never shown again, a
 The app is a long-running server with a local database and OCR, so it suits a container host rather than serverless functions.
 
 ## Demo
-`DEMO.md` has the five-minute walkthrough. `demo_documents/` holds document packs by scenario, rebuilt with `python scripts/build_demo_folders.py`.
+`DEMO.md` has the five-minute walkthrough and `DECISIONS.md` the process map, decisions and assumptions. `demo_documents/` holds document packs by scenario, rebuilt with `python scripts/build_demo_folders.py`.
 
 ## Assumptions
 - Documents are fictional for fictional companies; real public identifiers are used only for real companies.

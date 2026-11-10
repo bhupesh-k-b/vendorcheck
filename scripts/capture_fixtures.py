@@ -1,4 +1,4 @@
-"""Capture REAL gstinapi.in responses once, into fixtures/gst/<GSTIN>.json, so tests and the test bench can
+"""Capture REAL gstinapi.in responses once, into fixtures/gst/<GSTIN>.json, so tests and simulated cases can
 replay them (mode `recorded`) at zero credits. Spends about 4 credits. Never writes anything it did not receive.
 
     .venv/bin/python scripts/capture_fixtures.py

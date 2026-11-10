@@ -5,7 +5,6 @@ pulls out identifiers with regexes and checksums, and names by their printed lab
 reported as `missing`, and only then may the caller ask a language model about THAT page's text."""
 import re
 
-from . import validators as v
 
 # document type -> (patterns, how many must match)
 CLASSIFY = {

@@ -25,7 +25,7 @@ case waits on the vendor. VendorCheck never fakes a registry answer, and sample 
 To see the **complete flow with every document attached ending in Approved**, use `C_happy_test_case/` : **Load a sample → Kaveri: happy test case (all documents)**.
 Typed details plus the registration form, PAN card, GST certificate, cancelled cheque, certificate of incorporation and address proof. All five required documents are found,
 consistency is 100 (Strong), it waits on Finance for the bank, and two people approve. The documents are read for real (14 pages). It is labelled **Simulated** because the
-fictional company's registry answer is synthetic, and it is never written to the vendor master. The test bench scenario **H2** covers the same flow without a browser.
+fictional company's registry answer is synthetic, and the vendor ID it receives is flagged Simulated.
 
 For a **live approved** case use the real-company example (typed details, checked live): **Load a sample → Zoho**, then finance confirms
 the bank account and a second person approves. To see an approval with documents, upload a real company's own documents (with its
