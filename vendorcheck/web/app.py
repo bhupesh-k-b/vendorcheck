@@ -26,7 +26,7 @@ from ..workflow import USERS, WorkflowError, latest_version, user_of
 from . import views
 
 HERE = Path(__file__).parent
-FORM_FIELDS = ["country", "legal_name", "gstin", "pan", "cin", "tax_id", "bank_account", "bank_account_confirm", "iban", "swift", "routing_code", "ifsc", "account_holder",
+FORM_FIELDS = ["country", "legal_name", "address", "gstin", "pan", "cin", "tax_id", "bank_account", "bank_account_confirm", "iban", "swift", "routing_code", "ifsc", "account_holder",
                "contact_name", "contact_email", "contact_phone", "udyam_number",
                "vendor_type", "expense_category", "department_owner", "negotiated_terms", "system_terms"]
 OFFICIAL = {

@@ -89,6 +89,7 @@
           <p class="mt-1 text-xs text-slate-500" x-show="fields.country !== 'IN'" x-cloak>Outside India, tax IDs and bank details are format-checked, then confirmed by a person.</p>
         </div>
         {{ field('legal_name', 'Legal business name', 'As registered', hint=False) }}
+        <div class="md:col-span-2">{{ field('address', 'Registered business address (optional)', 'Street, city, state and PIN: compared with the address on your documents', hint=False) }}</div>
 
         <fieldset class="contents" x-show="fields.country === 'IN'" :disabled="fields.country !== 'IN'">
           {% if details_on.gstin %}{{ field('gstin', 'GSTIN', '15 characters') }}{% endif %}
@@ -177,7 +178,7 @@
 
 <script>
   function newForm(examples) {
-    const blank = { vendor_type: '', expense_category: '', department_owner: '', negotiated_terms: '', system_terms: '', country: 'IN', legal_name: '', gstin: '', pan: '', cin: '', tax_id: '', iban: '', swift: '', routing_code: '', bank_account: '', bank_account_confirm: '', ifsc: '', account_holder: '', contact_name: '', contact_email: '', contact_phone: '', udyam_number: '' };
+    const blank = { vendor_type: '', expense_category: '', department_owner: '', negotiated_terms: '', system_terms: '', country: 'IN', legal_name: '', address: '', gstin: '', pan: '', cin: '', tax_id: '', iban: '', swift: '', routing_code: '', bank_account: '', bank_account_confirm: '', ifsc: '', account_holder: '', contact_name: '', contact_email: '', contact_phone: '', udyam_number: '' };
     {{ custom_details|map(attribute='key')|list|tojson }}.forEach(k => { blank['x_' + k] = ''; });
     const prefill = JSON.parse(document.getElementById('prefill-data').textContent);
     return {

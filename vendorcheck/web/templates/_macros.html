@@ -43,7 +43,8 @@
                 'unclear': ('bg-amber-50 text-amber-600 ring-amber-200', 'M9.6 9.2a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7M12 17h.01', 'Unclear'),
                 'missing': ('bg-slate-50 text-slate-400 ring-slate-200', 'M8 12h8', 'Not shown'),
                 'proprietor': ('bg-sky-50 text-sky-600 ring-sky-200', 'M12 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 19a6 6 0 0 1 12 0', "Proprietor's own name"),
-                'other': ('bg-amber-50 text-amber-600 ring-amber-200', 'M12 8v5M12 16.5h.01', 'Another party')} %}
+                'other': ('bg-amber-50 text-amber-600 ring-amber-200', 'M12 8v5M12 16.5h.01', 'Another party'),
+                'alone': ('bg-slate-50 text-slate-500 ring-slate-300', 'M12 7.5h.01M11 11h1.3v5.5', 'Only source: nothing to compare it with')} %}
   {% set c = cfg.get(kind, cfg['missing']) %}
   <span class="inline-flex {{ size }} shrink-0 items-center justify-center rounded-full ring-1 {{ c[0] }}" title="{{ c[2] }}" role="img" aria-label="{{ c[2] }}"><svg class="h-[55%] w-[55%]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ c[1] }}"/></svg></span>
 {% endmacro %}

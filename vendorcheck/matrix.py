@@ -3,6 +3,7 @@
 Rows are the places a value can come from (the typed form, each uploaded document, the government record);
 columns are the fields. Each cell is:
     ok       this source agrees with the consensus value
+    alone    this is the only source that shows the field: nothing to compare it with (never counted as agreement)
     bad      this source disagrees (the reason names both values)
     missing  this kind of document normally carries the field but it is not there   (shown as O)
     unclear  the value could not be read with confidence (never counted as agreeing)
@@ -18,7 +19,7 @@ FIELDS = [("legal_name", "Legal name"), ("tax_id", "Tax ID"), ("pan", "PAN"), ("
           ("bank_account", "Bank account no."), ("ifsc", "IFSC"), ("account_holder", "Account holder"), ("address", "Address")]
 WEIGHT = {"address": 1, "tax_id": 2, "pan": 2, "gstin": 2, "cin": 2, "bank_account": 2, "ifsc": 2, "legal_name": 1, "account_holder": 1}
 EXPECTED = {
-    "typed": ["legal_name", "tax_id", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder"],
+    "typed": ["legal_name", "tax_id", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder", "address"],
     "vendor_registration_form": ["legal_name", "tax_id", "pan", "gstin", "cin", "bank_account", "ifsc"],
     "tax_form_or_vat_certificate": ["tax_id", "legal_name"],
     "pan_card": ["pan", "legal_name"],
@@ -116,7 +117,7 @@ def build(sources: list[Source], threshold: float = 92, extra: list[tuple[str, s
     fnames = dict(ALL)
     expected = {**EXPECTED, "typed": EXPECTED["typed"] + [f for f, _ in extra], **{k: ["legal_name", "address"] + ([f] if f else []) for k, f in (doc_fields or {}).items()}}
     custom_kinds = set(doc_fields or {})
-    optional_typed = {"account_holder"} | {f for f, _ in extra}
+    optional_typed = {"account_holder", "address"} | {f for f, _ in extra}
     with_derived_pan(sources)
     present = {f for s in sources for f in s.values}
     applicable = [f for f, _ in ALL if f in present or f == "legal_name"]
@@ -162,6 +163,8 @@ def build(sources: list[Source], threshold: float = 92, extra: list[tuple[str, s
                 cells[f] = {"state": "unclear", "value": val, "reason": f"{s.label}: the {fnames[f].lower()} could not be read clearly."}
             elif not val:
                 cells[f] = {"state": "missing", "value": "", "reason": f"{s.label} does not show the {fnames[f].lower()}."}
+            elif f != "account_holder" and sum(1 for o in sources if not o.foreign and o.values.get(f) and f not in o.unclear) < 2:
+                cells[f] = {"state": "alone", "value": val, "reason": f"Only {s.label} shows the {fnames[f].lower()}, so there is nothing to compare it with."}
             else:
                 ref = consensus.get(f)
                 if f == "account_holder":

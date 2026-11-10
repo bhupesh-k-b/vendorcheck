@@ -186,6 +186,36 @@ def test_a_matching_name_on_the_document_is_confirmed():
     assert row["cells"]["legal_name"]["state"] == "ok" and row["cells"]["x_fssai_licence"]["state"] == "ok"
 
 
+def test_an_address_on_the_document_is_checked_against_the_typed_address():
+    pages = [pg(1, "fssai_licence")]
+    doc_fields = [{"field": "address", "value": "Plot 7 GIDC Vatva Ahmedabad Gujarat 382445", "page": 1, "doc_type": "fssai_licence", "snippet": "a"},
+                  {"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "n"}]
+    base = dict(gstin="", pan="", x_fssai_licence="12345678901234")                              # no GSTIN: no registry address to compare with either
+    _, _, alone = _run(policy_with_fssai(), form(**base), pages, doc_fields)
+    assert alone["compliance"][0]["address_check"] == "none"                                      # nothing else shows an address: not "agreeing", just nothing to compare
+    assert next(r for r in alone["matrix"]["rows"] if r["kind"] == "fssai_licence")["cells"]["address"]["state"] == "alone"
+    _, _, same = _run(policy_with_fssai(), form(**base, address="Plot 7, GIDC Vatva, Ahmedabad, Gujarat - 382445"), pages, doc_fields)
+    assert same["compliance"][0]["address_check"] == "ok"
+    assert next(r for r in same["matrix"]["rows"] if r["kind"] == "fssai_licence")["cells"]["address"]["state"] == "ok"
+    ctx2, _, other = _run(policy_with_fssai(), form(**base, address="12 Park Street, Kolkata, West Bengal - 700016"), pages, doc_fields)
+    assert other["compliance"][0]["address_check"] == "differs"
+    assert "address" in other["matrix"]["conflicts"]                                              # flagged for review, with both addresses in the reason
+    with Session(ctx2.engine) as s:
+        assert views.case_rows(s)[0]["missing_items"] == ["FSSAI licence (address differs)"]
+
+
+def test_a_value_only_one_source_shows_is_marked_alone_and_never_counted_as_agreement():
+    from vendorcheck.matrix import Source, build
+    one = build([Source("typed", "", {"legal_name": "ACME LTD"}), Source("fssai_licence", "f.pdf", {"address": "1 Main Road 400001"})],
+                extra=[], doc_fields={"fssai_licence": ""})
+    cell = next(r for r in one["rows"] if r["kind"] == "fssai_licence")["cells"]["address"]
+    assert cell["state"] == "alone" and "nothing to compare" in cell["reason"]
+    two = build([Source("typed", "", {"legal_name": "ACME LTD", "address": "1 Main Road 400001"}), Source("fssai_licence", "f.pdf", {"address": "1 Main Road 400001"})],
+                extra=[], doc_fields={"fssai_licence": ""})
+    assert next(r for r in two["rows"] if r["kind"] == "fssai_licence")["cells"]["address"]["state"] == "ok"
+    assert one["cells_checked"] < two["cells_checked"]                                         # a lone value adds nothing to the score
+
+
 def test_a_document_that_states_no_name_is_not_marked_as_missing_one():
     pages = [pg(1, "fssai_licence")]
     fields = [{"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "n"}]

@@ -14,6 +14,7 @@
         <span class="inline-flex items-center gap-1.5">{{ m.mark('missing', 'h-5 w-5') }}Not shown</span>
         <span class="inline-flex items-center gap-1.5">{{ m.mark('unclear', 'h-5 w-5') }}Unclear</span>
         <span class="inline-flex items-center gap-1.5">{{ m.mark('other', 'h-5 w-5') }}Another party</span>
+        <span class="inline-flex items-center gap-1.5">{{ m.mark('alone', 'h-5 w-5') }}Only source</span>
       </div>
     </div>
     <div class="card flex items-center gap-5 px-5 py-4" title="Advisory. The status is decided by the rules, not the score.">
@@ -53,6 +54,7 @@
                 {% elif c.state == 'bad' %}<div class="flex flex-col items-center gap-1">{{ m.mark('bad') }}<span class="mono max-w-[5.5rem] truncate text-[11px] text-rose-700">{{ c.value|mask_ids }}</span></div>
                 {% elif c.state == 'missing' %}{{ m.mark('missing') }}
                 {% elif c.state == 'unclear' %}{{ m.mark('unclear') }}
+                {% elif c.state == 'alone' %}<div class="flex flex-col items-center gap-1">{{ m.mark('alone') }}<span class="max-w-[7rem] truncate text-[11px] text-slate-500">{{ c.value|mask_ids }}</span></div>
                 {% elif c.state == 'proprietor' %}<div class="flex flex-col items-center gap-1">{{ m.mark('proprietor') }}<span class="text-[11px] text-sky-700">Proprietor</span></div>
                 {% elif c.state == 'foreign' %}<div class="flex flex-col items-center gap-1">{{ m.mark('other') }}{% if f == 'account_holder' and c.value %}<span class="max-w-[7rem] truncate text-[11px] text-amber-800">{{ c.value|mask_ids }}</span>{% endif %}</div>{% endif %}
               </td>

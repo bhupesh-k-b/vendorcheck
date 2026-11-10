@@ -18,7 +18,7 @@ from .adapters.base import AdapterResult
 from .models import Case, Run, Version
 from . import checklist as ck
 from .policy import applies_to, custom_details, custom_docs, detail_on, disabled_fields, doc_enabled, format_ok
-from .matrix import DOC_LABEL, Source as MSource, apply_coverage, build as build_matrix, unit_of
+from .matrix import same_address, DOC_LABEL, Source as MSource, apply_coverage, build as build_matrix, unit_of
 from .reader import CRITICAL, RECOGNISED, ReaderUnavailable, imagey_pages
 from .rules import FLAG, INFO, NOTE, PASS, REJECT, SKIP, WAIT, Check, vtext
 
@@ -199,7 +199,7 @@ def build_doc_map(st: RunState, foreign: dict, floor_pct: int = 0) -> list:
 def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0, custom_keys=frozenset(), titles=None) -> list:
     """One matrix row per document (file x document type) plus the typed form."""
     out = []
-    tv = {k: typed[k] for k in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder") if typed.get(k)}
+    tv = {k: typed[k] for k in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder", "address") if typed.get(k)}
     tv.update({k: typed[k] for k in typed if k.startswith("x_") and typed.get(k)})        # numbers added in Settings
     if tv:
         out.append(MSource("typed", "New submission form", dict(tv)))
@@ -1279,6 +1279,9 @@ def stage_reconcile(ctx, st: RunState) -> str:
                               "details": [{"label": extract.INFO_LABEL[f], "value": val} for f, val in st.item_details.get(d["key"], {}).items()]})
         doc_name = st.item_details.get(d["key"], {}).get("legal_name", "")
         case_name = (st.typed.get("legal_name") or "").strip() or next((s_.values["legal_name"] for s_ in st.sources if s_.kind not in (d["key"], "typed") and s_.values.get("legal_name")), "")
+        doc_addr = st.item_details.get(d["key"], {}).get("address", "")
+        others = [s_.values["address"] for s_ in st.sources if s_.kind != d["key"] and s_.values.get("address")]
+        st.compliance[-1]["address_check"] = "" if not doc_addr else ("none" if not others else ("ok" if any(same_address(doc_addr, o) for o in others) else "differs"))
         st.compliance[-1]["name_check"] = ("" if not (doc_name and case_name) else ("ok" if v.names_match(doc_name, case_name, thr_) else "differs"))
     for key, det in dets.items():
         item = next((c for c in st.compliance if c["key"] == key), None)
