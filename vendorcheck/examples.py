@@ -108,7 +108,7 @@ EXAMPLES["munitions_form"] = {
     "note": "The vendor form filled with Munitions India Limited's public details. Its bank pages are in Munitions' own name, so the account holder on the bank form, "
             "the typed holder and the legal name all agree. The other required documents are not attached, so the case waits on the vendor for them."}
 EXAMPLES["happy_documents"] = {
-    "label": "Happy test case: typed details and all documents", "samples": ["kaveri_happy_pack.pdf"], "simulate": True, "fields": KAVERI,
+    "label": "Kaveri: happy test case (all documents)", "samples": ["kaveri_happy_pack.pdf"], "simulate": True, "fields": KAVERI,
     "note": "SIMULATED test case on a fictional company. Typed details plus every required document (registration form, PAN card, GST certificate, cancelled cheque, "
             "certificate of incorporation, address proof), all consistent. The documents are read for real; only the GST registry answer is synthetic, because a fictional "
             "company cannot exist in the real registry. Pending until finance confirms the bank, then Approved. Never written to the vendor master."}

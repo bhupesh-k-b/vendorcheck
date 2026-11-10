@@ -22,7 +22,7 @@ certificate of incorporation, address proof (electricity bill), Udyam certificat
 Approval needs the GST registry to confirm the GSTIN. Kaveri is fictional, so the registry correctly answers **not found**, and the
 case waits on the vendor. VendorCheck never fakes a registry answer, and sample or recorded data can never approve a real vendor.
 
-To see the **complete flow with every document attached ending in Approved**, use `C_happy_test_case/` : **Load a sample → Happy test case: typed details and all documents**.
+To see the **complete flow with every document attached ending in Approved**, use `C_happy_test_case/` : **Load a sample → Kaveri: happy test case (all documents)**.
 Typed details plus the registration form, PAN card, GST certificate, cancelled cheque, certificate of incorporation and address proof. All five required documents are found,
 consistency is 100 (Strong), it waits on Finance for the bank, and two people approve. The documents are read for real (14 pages). It is labelled **Simulated** because the
 fictional company's registry answer is synthetic, and it is never written to the vendor master. The test bench scenario **H2** covers the same flow without a browser.

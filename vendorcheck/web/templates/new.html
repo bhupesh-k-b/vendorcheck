@@ -17,7 +17,7 @@
     <select id="f-{{ name }}" name="{{ name }}" x-model="fields.{{ name }}" class="mt-1.5 block w-full rounded-lg border-slate-300 text-sm"><option value="">Select…</option>{% for o in options %}<option>{{ o }}</option>{% endfor %}</select>
   </div>
 {% endmacro %}
-{% set groups = [('Simulated test case', ['happy_documents']),
+{% set groups = [('', ['happy_documents']),
                  ('India', ['zoho', 'munitions', 'infosys', 'eternal', 'eternal_old', 'tcs', 'zoho_duplicate', 'zoho_lookalike', 'zoho_bank_change']),
                  ('International', ['us_vendor', 'eu_vendor', 'wrong_country', 'eu_wrong_iban']),
                  ('Document packs', ['munitions_form', 'rmc1_infosys', 'kaveri_complete', 'kaveri_clean', 'kaveri_messy', 'kaveri_holder_mismatch', 'mehta_separate', 'orchid_wrong', 'lakeview_pack', 'lakeview_indian_id', 'rheinland_pack'])] %}
@@ -39,7 +39,8 @@
       </button>
       <div x-show="open" x-cloak x-transition.origin.top.right class="absolute right-0 z-30 mt-2 max-h-[70vh] w-[22rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
         {% for title, keys in groups %}
-          <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ title }}</p>
+          {% if loop.index == 2 %}<div class="mx-3 my-1 border-t border-slate-100"></div>{% endif %}
+          {% if title %}<p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ title }}</p>{% endif %}
           {% for key in keys if key in examples %}
             <button type="button" data-example="{{ key }}" @click="use('{{ key }}'); open = false" title="{{ examples[key].note }}"
                     class="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-accent-50 hover:text-accent-800">{{ examples[key].label }}</button>
@@ -165,7 +166,7 @@
         const e = this.examples[key];
         this.fields = { ...blank, ...e.fields };
         this.samples = (e.samples || []).join(',');
-        this.note = e.note; this.picked = key;
+        this.note = ''; this.picked = key;
         this.msme = this.fields.udyam_number ? 'yes' : 'no';
         this.simulate = !!e.simulate;
         this.$nextTick(() => this.recheck());
