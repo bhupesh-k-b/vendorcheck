@@ -48,6 +48,7 @@ def main():
     for i, (name, (a, b)) in enumerate(KAVERI.items(), 1):
         pick(src, [(a, b)], sep / f"{i:02d}_{name}.pdf")
     copy("kaveri_complete_pack.pdf", happy / "B_one_combined_pdf")
+    copy("kaveri_happy_pack.pdf", happy / "C_happy_test_case")
 
     # ---------- edge cases ----------
     pick(src, [(1, 11), (13, 13), (15, 15), (17, 17)], edge / "01_missing_documents" / "kaveri_pack_without_pan_cheque_address.pdf")
@@ -133,9 +134,10 @@ certificate of incorporation, address proof (electricity bill), Udyam certificat
 Approval needs the GST registry to confirm the GSTIN. Kaveri is fictional, so the registry correctly answers **not found**, and the
 case waits on the vendor. VendorCheck never fakes a registry answer, and sample or recorded data can never approve a real vendor.
 
-To see the **complete flow with every document attached ending in Approved**, open **Test bench → Run all scenarios** and look at **H2: Happy path with all
-documents**: typed details plus the registration form, PAN card, GST certificate, cancelled cheque, address proof and incorporation certificate, all documents
-found, consistency 100, two people approve. It is labelled simulated because the fictional company's registry answer is synthetic.
+To see the **complete flow with every document attached ending in Approved**, use `C_happy_test_case/` : **Load a sample → Happy test case: typed details and all documents**.
+Typed details plus the registration form, PAN card, GST certificate, cancelled cheque, certificate of incorporation and address proof. All five required documents are found,
+consistency is 100 (Strong), it waits on Finance for the bank, and two people approve. The documents are read for real (14 pages). It is labelled **Simulated** because the
+fictional company's registry answer is synthetic, and it is never written to the vendor master. The test bench scenario **H2** covers the same flow without a browser.
 
 For a **live approved** case use the real-company example (typed details, checked live): **Load a sample → Zoho**, then finance confirms
 the bank account and a second person approves. To see an approval with documents, upload a real company's own documents (with its

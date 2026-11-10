@@ -14,11 +14,12 @@ from sqlmodel import Session, SQLModel, select
 from .. import bench, config, db, pipeline, workflow
 from .. import countries as cn
 from .. import policy as policy_mod
+from .. import simulation
 from .. import validators as v
 from ..adapters import ifsc as ifsc_adapter
 from ..context import default_ctx, sources_status
 from ..examples import EXAMPLES, SAMPLE_FILES
-from ..models import Case, Task, VendorMaster, Version, utcnow
+from ..models import Case, Run, Task, VendorMaster, Version, utcnow
 from ..reader import ReaderUnavailable
 from ..storage import allowed, store_bytes
 from ..workflow import USERS, WorkflowError, latest_version, user_of
@@ -65,8 +66,41 @@ def create_app(ctx=None) -> FastAPI:
     templates.env.filters.update({"upfirst": lambda s: (s[:1].upper() + s[1:]) if s else s, "mask_ids": views.mask_ids, "ist": views.ist, "dur": views.dur, "mask": v.mask})
     templates.env.globals.update({"STAGE_ORDER": views.STAGE_ORDER})
 
+    def sim_for(st):
+        """The simulated-registry context, built once per base context."""
+        if getattr(st, "sim_ctx", None) is None or getattr(st, "sim_base", None) is not st.ctx:
+            st.sim_ctx, st.sim_base = simulation.sim_ctx(st.ctx), st.ctx
+        return st.sim_ctx
+
+    def case_of(request: Request, s: Session):
+        """The case a request is about, from its path: /cases/{id}, /runs/{id}, /tasks/{id} or the vendor portal /v/{token}."""
+        p = request.path_params
+        if "case_id" in p:
+            return s.get(Case, int(p["case_id"]))
+        if "run_id" in p:
+            run = s.get(Run, int(p["run_id"]))
+            return s.get(Case, run.case_id) if run else None
+        if "task_id" in p:
+            task = s.get(Task, int(p["task_id"]))
+            return s.get(Case, task.case_id) if task else None
+        if "token" in p:
+            return s.exec(select(Case).where(Case.token == p["token"])).first()
+        return None
+
     def C(request: Request):
-        return request.app.state.ctx
+        """The context for this request: the real one, or the simulated one for a case that was submitted as a simulation."""
+        st = request.app.state
+        cached = getattr(request.state, "ctx_cached", None)
+        if cached is not None:
+            return cached
+        ctx = st.ctx
+        if request.path_params:
+            with Session(st.ctx.engine) as s:
+                case = case_of(request, s)
+                if case is not None and case.sim:
+                    ctx = sim_for(st)
+        request.state.ctx_cached = ctx
+        return ctx
 
     def me(request: Request) -> dict:
         return user_of(request.cookies.get("vc_user", "priya"))
@@ -129,8 +163,9 @@ def create_app(ctx=None) -> FastAPI:
                 files.append(store_bytes((config.SAMPLES_DIR / name).read_bytes(), name))
         if not files and not any(typed[k] for k in ("legal_name", "gstin", "pan")):
             return RedirectResponse("/new?error=Add a document or fill in at least the legal name, GSTIN or PAN", 303)
-        cid, vid = workflow.create_case(C(request), {k: val for k, val in typed.items() if val not in ("", False)}, files, actor=me(request)["name"])
-        rid = pipeline.start_run(C(request), cid, vid)
+        ctx = sim_for(request.app.state) if form.get("simulate") == "1" else C(request)      # a simulated test case runs against the simulated registry
+        cid, vid = workflow.create_case(ctx, {k: val for k, val in typed.items() if val not in ("", False)}, files, actor=me(request)["name"])
+        rid = pipeline.start_run(ctx, cid, vid)
         return RedirectResponse(f"/runs/{rid}", 303)
 
     @app.get("/api/check/{field}", response_class=HTMLResponse)

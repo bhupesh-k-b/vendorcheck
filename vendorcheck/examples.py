@@ -107,6 +107,11 @@ EXAMPLES["munitions_form"] = {
     "label": "Munitions: RMC1 form, bank name matches", "samples": ["rmc1_munitions_form_filled.pdf"], "fields": MUNITIONS,
     "note": "The vendor form filled with Munitions India Limited's public details. Its bank pages are in Munitions' own name, so the account holder on the bank form, "
             "the typed holder and the legal name all agree. The other required documents are not attached, so the case waits on the vendor for them."}
+EXAMPLES["happy_documents"] = {
+    "label": "Happy test case: typed details and all documents", "samples": ["kaveri_happy_pack.pdf"], "simulate": True, "fields": KAVERI,
+    "note": "SIMULATED test case on a fictional company. Typed details plus every required document (registration form, PAN card, GST certificate, cancelled cheque, "
+            "certificate of incorporation, address proof), all consistent. The documents are read for real; only the GST registry answer is synthetic, because a fictional "
+            "company cannot exist in the real registry. Pending until finance confirms the bank, then Approved. Never written to the vendor master."}
 EXAMPLES["kaveri_holder_mismatch"] = {
     "label": "Bank account name differs (Kaveri)", "samples": ["kaveri_pack_clean.pdf"],
     "fields": {**KAVERI, "account_holder": "Ravi Kulkarni"},
@@ -115,6 +120,6 @@ for _e in EXAMPLES.values():      # every sample that has bank details also says
     _f = _e["fields"]
     if (_f.get("bank_account") or _f.get("iban")) and _f.get("legal_name") and "account_holder" not in _f:
         _e["fields"] = {**_f, "account_holder": _f["legal_name"]}
-SAMPLE_FILES = {"rmc1_munitions_form_filled.pdf", "rmc1_infosys_form_filled.pdf", "kaveri_complete_pack.pdf", "mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf",
+SAMPLE_FILES = {"kaveri_happy_pack.pdf", "rmc1_munitions_form_filled.pdf", "rmc1_infosys_form_filled.pdf", "kaveri_complete_pack.pdf", "mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf",
                 "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "orchid_wrong_documents.pdf", "lakeview_us_pack.pdf", "rheinland_eu_pack.pdf","eternal_nse_name_change_filing.pdf", "blank_vendor_form.pdf", "infosys_vendor_form_typed.pdf",
                 "kaveri_pack_clean.pdf", "kaveri_pack_messy.pdf", "kaveri_pan_card.png", "registration_form_blank.pdf"}

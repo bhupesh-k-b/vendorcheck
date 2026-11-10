@@ -56,7 +56,8 @@ Open the dashboard. Say: "The dashboard keeps history across runs: status, outco
 
 ## Optional extras (outside the 5 minutes, for the live interview)
 - **Munitions India Limited** sample: a real company, live-verified, ends Approved. **Munitions: RMC1 form, bank name matches**: the Holder column all ✓.
-- **Test bench H2**: typed details plus all six documents, ending Approved (simulated).
+- **Happy test case with all documents** (Load a sample → "Happy test case: typed details and all documents"): real OCR reads 14 pages, all five required documents found, consistency Strong, finance confirms
+  and a second person approves: Approved, labelled **Simulated** (the registry answer is synthetic for a fictional company; never written to the vendor master). Same flow without a browser: Test bench scenario H2.
 - **Zoho duplicate** (run after Zoho): "Existing vendor found", no new record or code.
 - **TCS wrong GSTIN**: tax-collector GSTIN flagged instantly, no credit spent.
 - **Settings → Verification policy**: change the name-match threshold or accepted evidence live.

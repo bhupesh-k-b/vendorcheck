@@ -53,7 +53,7 @@
         {{ m.chip(case.status, case.waiting_on) }}
         <h2 class="text-lg font-semibold text-slate-900">{{ case.reason }}</h2>
       </div>
-      {% if decision.get('simulated') %}<p class="mt-2 text-sm font-semibold text-orange-800">Simulated run on recorded evidence. Nothing here is real.</p>{% endif %}
+      {% if decision.get('simulated') or case.sim %}<p class="mt-2 inline-flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-900 ring-1 ring-orange-200">Simulated test case: the registry answer is synthetic for this fictional company. The documents were read for real. Nothing here is a real vendor.</p>{% endif %}
       <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
         <span>Version {{ version.number }}</span>
         <span>{{ country_name }}{{ ' (inferred)' if country_inferred and country }}</span>

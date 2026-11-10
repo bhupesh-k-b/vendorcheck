@@ -6,7 +6,7 @@
 <nav class="text-sm text-slate-500" aria-label="Breadcrumb"><a href="/" class="hover:text-slate-800">Dashboard</a> <span aria-hidden="true" class="mx-1 text-slate-300">/</span> <span class="text-slate-700">{{ case.display_name }}</span></nav>
 <div class="mb-5 mt-3 flex flex-wrap items-center justify-between gap-3">
   <div class="flex flex-wrap items-center gap-3">
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ case.display_name }}</h1>{% if tab != 'latest' %}{{ m.chip(case.status, case.waiting_on) }}{% endif %}
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ case.display_name }}</h1>{% if tab != 'latest' %}{{ m.chip(case.status, case.waiting_on) }}{% endif %}{% if case.sim %}{{ m.pill('warn', 'Simulated test case') }}{% endif %}
   </div>
   <a href="/v/{{ case.token }}" target="_blank" class="btn btn-ghost">Vendor portal link<svg class="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
 </div>

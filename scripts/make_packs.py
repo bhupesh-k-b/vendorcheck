@@ -117,6 +117,18 @@ def build_munitions(rmc1: Path):
         "account": "40436892598", "ifsc": "SBIN0003228", "gstin": "23AAOCM8781H2ZX", "pan": "AAOCM8781H"}))
 
 
+def build_happy_pack():
+    """The happy-path pack: every required document for a company, all consistent. Cut from the complete Kaveri pack: the filled registration form
+    (without the template's sample bank pages, which are another company's), PAN card, GST certificate, cancelled cheque, certificate of incorporation, address proof."""
+    src = pymupdf.open(OUT / "kaveri_complete_pack.pdf")
+    keep = [*range(0, 8), *range(10, 16)]                    # form pages 1-8 and 11, then PAN, GST, cheque, incorporation, address proof
+    out = pymupdf.open()
+    for i in keep:
+        out.insert_pdf(src, from_page=i, to_page=i)
+    out.save(OUT / "kaveri_happy_pack.pdf")
+    print(f"wrote kaveri_happy_pack.pdf ({len(keep)} pages)")
+
+
 def build_all(rmc1: Path):
     OUT.mkdir(exist_ok=True)
     build_munitions(rmc1)

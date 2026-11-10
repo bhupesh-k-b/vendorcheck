@@ -74,9 +74,13 @@ def seconds_between(a, b) -> float | None:
 
 # ---------- dashboard ----------
 
-def case_rows(s: Session, status: str = "", waiting: str = "", q: str = "", sim: bool = False) -> list[dict]:
+def case_rows(s: Session, status: str = "", waiting: str = "", q: str = "", sim: bool | None = None) -> list[dict]:
+    """Every case, newest first. sim=None lists real and simulated cases together (simulated ones carry a tag); True/False lists only those."""
     rows = []
-    for c in s.exec(select(Case).where(Case.sim == sim).order_by(Case.updated_at.desc())).all():
+    query = select(Case).order_by(Case.updated_at.desc())
+    if sim is not None:
+        query = query.where(Case.sim == sim)
+    for c in s.exec(query).all():
         ver = latest_version(s, c.id)
         run = latest_run(s, c.id)
         vals = {**(ver.declared if ver else {}), **(ver.profile.get("values", {}) if ver else {})}
