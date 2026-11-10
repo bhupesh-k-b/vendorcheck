@@ -9,7 +9,7 @@ Target length 4:30 to 4:50 (the cap is 5:00). One happy path and two edge cases,
 3. Bottom-left user card says **Priya, Procurement**. Settings page shows every connection green (do not show anything with keys).
 4. Browser: a fresh window, one tab, zoom 110%, bookmarks bar hidden, window about 1440 wide. macOS Do Not Disturb on, other apps closed.
 5. Do **not** click "Verify PAN via API" (5 credits) or "Check filing history" (1 credit).
-6. Rehearse the zero-credit parts as often as you like: the wrong-country case, the test bench, navigation. A full live rehearsal costs 2 credits, so top up credits first if you want one.
+6. Rehearse the zero-credit parts as often as you like: the wrong-country case, navigation. A full live rehearsal costs 2 credits, so top up credits first if you want one.
 7. Start the recorder, take a breath, begin.
 
 ## Timeline
@@ -49,7 +49,7 @@ Point at the sidebar and the empty dashboard.
 Open the dashboard. Say: "The dashboard keeps history across runs: status, outcome, how many runs, who's waiting, and tags when documents or the typed form are missing. Every decision is a deterministic rule with a visible reason. AI reads messy text but never decides. Thresholds and accepted evidence live in Settings, so a company can set its own policy. What I'd build next: real bank verification, and the MCA and Udyam lookups where an API exists."
 
 ## If something goes wrong
-- A live lookup fails: **Settings → Test GST connection**. Fallback: **Test bench → Run all scenarios** (22 scenarios, zero credits, about a second) and narrate those.
+- A live lookup fails: **Settings → Test GST connection**. Fallback: record the wrong-country and bank-name cases, which cost no credits.
 - A run looks stuck: refresh. Progress is saved server-side.
 - Wrong role selected: use the bottom-left user card.
 - Only one live take is affordable: do not reset again. If the Zoho take fails, you have 1 credit left.
@@ -57,12 +57,11 @@ Open the dashboard. Say: "The dashboard keeps history across runs: status, outco
 ## Optional extras (outside the 5 minutes, for the live interview)
 - **Munitions India Limited** sample: a real company, live-verified, ends Approved. **Munitions: RMC1 form, bank name matches**: the Holder column all ✓.
 - **Happy test case with all documents** (Load a sample → "Kaveri: happy test case (all documents)"): real OCR reads 14 pages, all five required documents found, consistency Strong, finance confirms
-  and a second person approves: Approved, labelled **Simulated** (the registry answer is synthetic for a fictional company; never written to the vendor master). Same flow without a browser: Test bench scenario H2.
+  and a second person approves: Approved, labelled **Simulated** (the registry answer is synthetic for a fictional company; never written to the vendor master).
 - **Zoho duplicate** (run after Zoho): "Existing vendor found", no new record or code.
 - **TCS wrong GSTIN**: tax-collector GSTIN flagged instantly, no credit spent.
 - **Settings → Verification policy**: change the name-match threshold, the minimum reading confidence or accepted evidence live.
-- **FSSAI licence required together with other things** (Test bench, scenarios **F1 to F4**): the FSSAI licence number and certificate plus a TAN, on top of every standard detail and document.
-  F1 everything provided, approved by two people; F2 number and TAN left out, asked of the vendor; F3 a wrong-format number; F4 the certificate missing from an otherwise complete document set.
+- **FSSAI licence required together with other things** (Settings → add FSSAI licence as an extra item): the FSSAI licence number and certificate plus a TAN, on top of every standard detail and document.
 - **Extra compliance items** (Settings): add anything your company needs, as a **number** (a form field with a format like `AAAA99999A`), a **document** (recognised by words on the page), or both, for example **FSSAI licence**.
   Each has its own on/off switch. It appears as found or missing in Required documents, a Compliance items card on the case overview, the consistency table (an FSSAI column and a "Not provided" row) and the dashboard
   ("Missing: FSSAI licence"). Everything the document states (name, address, kind of business, reference no., dates) is read and compared with the other documents, and a name or address that differs from the typed form (optional "Registered business address") is flagged. A value only one source shows is marked **Only source**, never a green tick. Load **Mehta (separate files)** to see it missing, then **Mehta with FSSAI licence** to see the document found and the number matched. Folder `15_fssai_licence_item`.

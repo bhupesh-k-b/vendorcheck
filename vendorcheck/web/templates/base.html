@@ -24,7 +24,6 @@
   'new': '<path d="M12 5v14M5 12h14"/>',
   'queue': '<path d="M4 6h16M4 12h16M4 18h10"/>',
   'vendors': '<path d="M3 21h18M5 21V8l7-4 7 4v13M9 21v-6h6v6"/>',
-  'bench': '<path d="M9 3h6M10 3v6l-5 9a1 1 0 0 0 .9 1.5h12.2a1 1 0 0 0 .9-1.5l-5-9V3"/>',
   'settings': '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>'} %}
 {% macro nav(href, label, key, on) %}
   <a href="{{ href }}" class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium {{ 'bg-accent-50 text-accent-700' if on else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}" {% if on %}aria-current="page"{% endif %}>
@@ -47,7 +46,6 @@
       </div>
       <div class="space-y-0.5">
         <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Administration</p>
-        {{ nav('/bench', 'Test bench', 'bench', path.startswith('/bench')) }}
         {{ nav('/settings', 'Settings', 'settings', path.startswith('/settings')) }}
       </div>
     </nav>

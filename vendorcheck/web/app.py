@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, SQLModel, select
 
-from .. import bench, config, db, pipeline, workflow
+from .. import config, db, pipeline, workflow
 from .. import countries as cn
 from .. import policy as policy_mod
 from .. import simulation
@@ -135,23 +135,6 @@ def create_app(ctx=None) -> FastAPI:
         pol = C(request).policy
         return render(request, "new.html", examples=EXAMPLES, examples_json=json.dumps(EXAMPLES).replace("</", "<\\/"), prefill_json=json.dumps(pre), countries=cn.COUNTRIES,
                       details_on={k: policy_mod.detail_on(pol, k) for k in policy_mod.DETAIL_KEYS}, custom_details=policy_mod.custom_details(pol))
-
-    # ---------------- test bench ----------------
-    @app.get("/bench", response_class=HTMLResponse)
-    def bench_page(request: Request):
-        st = request.app.state
-        return render(request, "bench.html", results=getattr(st, "bench", None), mut=getattr(st, "mut", None), examples=EXAMPLES, mutations=bench.MUTATIONS)
-
-    @app.post("/bench/run")
-    def bench_run(request: Request):
-        request.app.state.bench = bench.run_all()
-        return RedirectResponse("/bench", 303)
-
-    @app.post("/bench/mutate")
-    def bench_mutate(request: Request, example: str = Form("zoho"), kind: str = Form("flip_gstin")):
-        if example in EXAMPLES and kind in bench.MUTATIONS:
-            request.app.state.mut = {"example": example, "kind": kind, **bench.run_mutation(example, kind)}
-        return RedirectResponse("/bench", 303)
 
     @app.post("/submit")
     async def submit(request: Request):

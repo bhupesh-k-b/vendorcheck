@@ -183,7 +183,7 @@
     const prefill = JSON.parse(document.getElementById('prefill-data').textContent);
     return {
       examples, fields: { ...blank, ...prefill }, samples: '', simulate: false, note: '', picked: '', names: [], drag: false, busy: false, msme: 'no',
-      init() { if (Object.keys(prefill).length) { this.note = 'Prefilled from the test bench.'; this.$nextTick(() => this.recheck()); } },
+      init() { if (Object.keys(prefill).length) { this.note = 'Details prefilled.'; this.$nextTick(() => this.recheck()); } },
       fmtOk(fmt, v) {      // A = letter, 9 = digit, * = letter or digit; spaces and dashes ignored
         const flat = s => (s || '').toUpperCase().replace(/[\s-]/g, '');
         const re = new RegExp('^' + [...flat(fmt)].map(c => c === 'A' ? '[A-Z]' : c === '9' ? '\\d' : c === '*' ? '[A-Z0-9]' : c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('') + '$');

@@ -20,7 +20,7 @@ make test
 Or with Docker: `docker build -t vendorcheck . && docker run -p 8000:8000 vendorcheck`.
 
 ## API keys (optional)
-The app works without any key: IFSC checks, offline validation, the test bench and the simulated samples all run locally. For live lookups, open **Settings → Use your own API keys** and paste:
+The app works without any key: IFSC checks, offline validation and the simulated samples all run locally. For live lookups, open **Settings → Use your own API keys** and paste:
 - a GST registry key from [gstinapi.in](https://www.gstinapi.in/register), and/or
 - a document-reader key (Gemini, Groq or OpenRouter).
 
@@ -31,7 +31,7 @@ Keys are held in server memory only: never written to disk, never shown again, a
 The app is a long-running server with a local database and OCR, so it suits a container host rather than serverless functions.
 
 ## Demo
-`DEMO.md` has the five-minute walkthrough. `demo_documents/` holds document packs by scenario, rebuilt with `python scripts/build_demo_folders.py`. The **Test bench** runs every scenario with zero credits.
+`DEMO.md` has the five-minute walkthrough. `demo_documents/` holds document packs by scenario, rebuilt with `python scripts/build_demo_folders.py`.
 
 ## Assumptions
 - Documents are fictional for fictional companies; real public identifiers are used only for real companies.
