@@ -27,7 +27,7 @@ def test_kaveri_registry_response_matches_the_pack():
     assert r.ok and r.mode == "recorded" and r.fields["legal_name"] == simulation.KAVERI_NAME and r.fields["status"] == "Active"
 
 
-def test_a_simulated_submission_is_flagged_approved_end_to_end_and_kept_out_of_the_vendor_master():
+def test_a_simulated_submission_is_approved_end_to_end_and_gets_a_flagged_vendor_id():
     c, ctx = client()
     c.app.state.sim_ctx, c.app.state.sim_base = replace(ctx, sim=True), ctx          # the fixture GSTIN stands in for the synthetic registry
     with c as c:
@@ -46,7 +46,10 @@ def test_a_simulated_submission_is_flagged_approved_end_to_end_and_kept_out_of_t
         page = c.get(f"/runs/{rid}").text                                                 # the finished item stays visible, with who confirmed and who approved
         assert 'id="completed"' in page and "Confirmed" in page and "Arjun" in page and "Neha" in page
         with Session(ctx.engine) as s:
-            assert s.exec(select(VendorMaster)).all() == []                          # a simulated approval never creates a vendor record
+            masters = s.exec(select(VendorMaster)).all()
+            assert len(masters) == 1 and masters[0].vendor_code == "VND-0001" and masters[0].record["simulated"] is True   # an approval always gets a vendor ID, flagged as simulated
+            assert s.exec(select(Case)).first().vendor_code == "VND-0001"
+        assert "VND-0001" in c.get("/cases/1").text
 
 
 def test_a_normal_submission_is_not_simulated():

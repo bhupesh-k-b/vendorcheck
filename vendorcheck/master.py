@@ -155,6 +155,7 @@ def commit_approved(s: Session, case, profile: dict, checks: list[dict], decisio
                              "department_owner": profile.get("department_owner", "")}
     rec["payment_terms"] = {"configured": profile.get("system_terms", ""), "negotiated": profile.get("negotiated_terms", ""),
                             "matches_negotiated": _days(profile.get("system_terms")) is not None and _days(profile.get("system_terms")) == _days(profile.get("negotiated_terms"))}
+    rec["simulated"] = bool(getattr(case, "sim", False))
     rec["status"] = "active"
     rec["last_verified"] = today.isoformat()
     rec["next_reverify"] = (today + timedelta(days=reverify_days)).isoformat()

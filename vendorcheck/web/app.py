@@ -56,6 +56,19 @@ def create_app(ctx=None) -> FastAPI:
         resumed = pipeline.recover_runs(app.state.ctx)
         if resumed:
             print(f"Resumed {len(resumed)} unfinished run(s)")
+        # an approved case always has a vendor ID: give one to any case approved before IDs were issued for it
+        base = app.state.ctx
+        with Session(base.engine) as s_:
+            todo = [(c.id, c.sim) for c in s_.exec(select(Case).where(Case.status == "approved")).all() if not c.vendor_code]
+        for cid, is_sim in todo:
+            use = base
+            if is_sim:
+                use = simulation.sim_ctx(base)
+                simulation.sync_policy(use, base)
+            try:
+                pipeline.redecide(use, cid)
+            except Exception as e:   # noqa: BLE001
+                print(f"Could not issue a vendor ID for case {cid}: {e}")
         yield
 
     app = FastAPI(title="VendorCheck", lifespan=lifespan)

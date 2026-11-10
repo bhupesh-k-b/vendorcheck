@@ -2,7 +2,7 @@
 
 A fictional company can never exist in the real GST registry, so it can never be approved by a live answer. A simulated submission therefore
 runs with a recorded (synthetic) registry response and the simulation policy, and is labelled Simulated everywhere. Documents are still read
-for real by the same reader. A simulated approval never writes to the vendor master. Real submissions never take this path."""
+for real by the same reader. A simulated approval gets a vendor ID like any other, and the record is flagged Simulated. Real submissions never take this path."""
 from copy import deepcopy
 from dataclasses import replace
 
@@ -34,6 +34,6 @@ def sync_policy(sim: Ctx, base: Ctx) -> None:
 
 
 def sim_ctx(base: Ctx, fixtures: dict | None = None) -> Ctx:
-    """The base context with the registry replaced by recorded responses, the simulation policy, and sim=True (cases are flagged and kept out of the vendor master)."""
+    """The base context with the registry replaced by recorded responses, the simulation policy, and sim=True (cases and their vendor records are flagged Simulated)."""
     gst = RecordedGst(fixtures if fixtures is not None else {KAVERI_GSTIN: kaveri_response()})
     return replace(base, sim=True, enrich=False, gst=gst, policy=simulation_policy(deepcopy(base.policy)))

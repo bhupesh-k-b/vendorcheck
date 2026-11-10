@@ -244,12 +244,10 @@ def do_communicate(ctx, st: S.RunState) -> tuple[str, str]:
         msg = messages.compose(case.display_name, ver.number, decision, checks)
         parts = [f"vendor message ready ({len(msg['items'])} item{'s' if len(msg['items']) != 1 else ''})"]
         code = case.vendor_code
-        if decision["status"] == "approved" and not ctx.sim:
+        if decision["status"] == "approved":
             code = _commit_master(ctx, s, case, ver, checks, decision)
             case.vendor_code = code
-            parts.append(f"vendor master {code} saved")
-        elif decision["status"] == "approved":
-            parts.append("simulation: vendor master NOT written")
+            parts.append(f"vendor master {code} saved" + (" (simulated case)" if ctx.sim else ""))
         case.decision = {**case.decision, "message": msg}
         s.add(case)
         s.commit()
