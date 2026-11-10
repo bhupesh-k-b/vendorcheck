@@ -5,12 +5,12 @@
     <div><h2 id="comp-h" class="section-title">Compliance items</h2>
       <p class="section-sub">What your policy asks for on top of the standard checks.</p></div>
     {% set ns = namespace(n=0) %}
-    {% for c in compliance %}{% if c.doc == 'missing' or c.number in ['missing', 'bad'] %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
-    {% if ns.n %}{{ m.pill('bad', ns.n ~ (' item missing' if ns.n == 1 else ' items missing')) }}{% else %}{{ m.pill('ok', 'All provided') }}{% endif %}
+    {% for c in compliance %}{% if c.doc == 'missing' or c.number in ['missing', 'bad'] or c.name_check == 'differs' %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+    {% if ns.n %}{{ m.pill('bad', ns.n ~ (' item needs attention' if ns.n == 1 else ' items need attention')) }}{% else %}{{ m.pill('ok', 'All provided') }}{% endif %}
   </div>
   <ul class="card mt-3 divide-y divide-slate-100 overflow-hidden">
     {% for c in compliance %}
-      {% set bad = c.doc == 'missing' or c.number in ['missing', 'bad'] %}
+      {% set bad = c.doc == 'missing' or c.number in ['missing', 'bad'] or c.name_check == 'differs' %}
       {% set good = not bad and (c.doc == 'found' or c.number == 'ok') %}
       <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 {{ 'bg-rose-50/40' if bad }}">
         {{ m.mark('bad' if bad else ('ok' if good else 'missing'), 'h-7 w-7') }}
@@ -22,11 +22,18 @@
           {% if c.doc == 'found' %}{{ m.pill('ok', 'Document found') }}
           {% elif c.doc == 'missing' %}{{ m.pill('bad', 'Document missing') }}
           {% elif c.doc == 'not_required' %}{{ m.pill('neutral', 'Document optional') }}{% endif %}
-          {% if c.number == 'ok' %}{{ m.pill('ok', 'Number ' ~ c.value) }}
+          {% if c.name_check == 'differs' %}{{ m.pill('bad', 'Name differs') }}{% elif c.name_check == 'ok' %}{{ m.pill('ok', 'Name matches') }}{% endif %}
+          {% if c.number == 'ok' %}{{ m.pill('ok', ('Number from document ' if c.number_src == 'document' else 'Number ') ~ c.value) }}
           {% elif c.number == 'bad' %}{{ m.pill('warn', 'Number format wrong') }}
           {% elif c.number == 'missing' %}{{ m.pill('bad', 'Number not provided') }}
           {% elif c.number == 'optional' %}{{ m.pill('neutral', 'Number not given') }}{% endif %}
         </div>
+        {% if c.details %}
+          <div class="basis-full rounded-lg bg-slate-50 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Read from the document</p>
+            <dl class="mt-1 grid gap-x-6 gap-y-0.5 text-xs sm:grid-cols-2">{% for d in c.details %}<div class="flex gap-1.5"><dt class="shrink-0 text-slate-500">{{ d.label }}:</dt><dd class="min-w-0 break-words font-medium text-slate-800">{{ d.value|mask_ids }}</dd></div>{% endfor %}</dl>
+          </div>
+        {% endif %}
       </li>
     {% endfor %}
   </ul>

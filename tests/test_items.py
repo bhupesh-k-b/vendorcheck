@@ -117,6 +117,84 @@ def test_a_missing_item_never_breaks_a_run_even_when_no_holder_name_or_other_col
     assert all(set(r["cells"]) == set(prof["matrix"]["rows"][0]["cells"]) for r in prof["matrix"]["rows"])
 
 
+def test_a_number_printed_on_the_document_counts_when_the_form_did_not_give_it():
+    pages = [pg(1, "fssai_licence")]
+    fields = [{"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "1"}]
+    ctx, cid, prof = _run(policy_with_fssai(), form(), pages, fields)                       # nothing typed for the FSSAI number
+    item = prof["compliance"][0]
+    assert item["doc"] == "found" and item["number"] == "ok" and item["number_src"] == "document" and item["value"] == "12345678901234"
+    from tests.test_engine import rule
+    with Session(ctx.engine) as s:
+        from sqlmodel import select
+        from vendorcheck.models import Run
+        rid = s.exec(select(Run).where(Run.case_id == cid)).all()[-1].id
+    r03 = rule(ctx, rid, "R03")
+    assert r03["result"] == "pass" or "FSSAI" not in r03["reason"]                           # the vendor is not asked for what the document already shows
+    assert "Read from the document" in rule(ctx, rid, "X3")["reason"]
+
+
+RECEIPT = """GovernmentofSomeState
+FoodSafety andStandardsAuthorityof India
+Receipt
+ReferenceNo:  30230420113301206  Date:  20-04-2023
+NameofCompany/  acmetraders  CategoryofLicense:  Registration[State][Renewal of
+Organization:  Registration]
+PremisesAddress:  villageOneTwo,Gabhana
+Tahsil,Aligarh,,Some State,
+202136
+Kind of Business:  Trade/Retail-Retailer
+Mode of Payment:  Razorpay
+Transaction No.:  1424307003565372
+"""
+
+
+def test_everything_a_document_states_is_read_even_when_the_reader_drops_spaces():
+    got = extract.document_details(RECEIPT)
+    assert got["legal_name"] == "acmetraders"
+    assert got["address"] == "villageOneTwo,Gabhana Tahsil,Aligarh,,Some State, 202136"
+    assert got["kind_of_business"] == "Trade/Retail-Retailer" and got["reference_no"] == "30230420113301206" and got["document_date"] == "20-04-2023"
+    licence = extract.document_details("FSSAI LICENCE\nLicence Number: 12345678901234\nName of Operator: MEHTA AND SONS TRADERS\nPremises: Plot 7, GIDC Vatva, Ahmedabad\nValid Upto: 31 Dec 2027\n")
+    assert licence["legal_name"] == "MEHTA AND SONS TRADERS" and licence["address"] == "Plot 7, GIDC Vatva, Ahmedabad" and licence["valid_until"] == "31 Dec 2027"
+    assert extract.document_details("Nothing labelled here") == {}
+
+
+def _fssai_run(doc_name, typed_name="Blue Heron Trading Private Limited"):
+    pages = [pg(1, "fssai_licence")]
+    fields = [{"field": "legal_name", "value": doc_name, "page": 1, "doc_type": "fssai_licence", "snippet": doc_name},
+              {"field": "address", "value": "Plot 7 GIDC Vatva Ahmedabad Gujarat 382445", "page": 1, "doc_type": "fssai_licence", "snippet": "a"},
+              {"field": "kind_of_business", "value": "Wholesale trading", "page": 1, "doc_type": "fssai_licence", "snippet": "k"},
+              {"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "n"}]
+    return _run(policy_with_fssai(), form(legal_name=typed_name, x_fssai_licence="12345678901234"), pages, fields)
+
+
+def test_a_name_on_the_document_that_does_not_match_the_case_is_flagged_everywhere():
+    ctx, cid, prof = _fssai_run("ACME TRADERS")
+    item = prof["compliance"][0]
+    assert item["name_check"] == "differs" and {"label": "Name", "value": "ACME TRADERS"} in item["details"]
+    assert {"label": "Kind of business", "value": "Wholesale trading"} in item["details"]
+    row = next(r for r in prof["matrix"]["rows"] if r["kind"] == "fssai_licence")
+    assert row["cells"]["legal_name"]["state"] == "bad" and "ACME TRADERS" in row["cells"]["legal_name"]["reason"]
+    assert "legal_name" in prof["matrix"]["conflicts"]                                    # so procurement is asked to review the difference
+    with Session(ctx.engine) as s:
+        assert views.case_rows(s)[0]["missing_items"] == ["FSSAI licence (name differs)"]
+
+
+def test_a_matching_name_on_the_document_is_confirmed():
+    _, _, prof = _fssai_run("BLUE HERON TRADING PRIVATE LIMITED")
+    assert prof["compliance"][0]["name_check"] == "ok"
+    row = next(r for r in prof["matrix"]["rows"] if r["kind"] == "fssai_licence")
+    assert row["cells"]["legal_name"]["state"] == "ok" and row["cells"]["x_fssai_licence"]["state"] == "ok"
+
+
+def test_a_document_that_states_no_name_is_not_marked_as_missing_one():
+    pages = [pg(1, "fssai_licence")]
+    fields = [{"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "n"}]
+    _, _, prof = _run(policy_with_fssai(), form(x_fssai_licence="12345678901234"), pages, fields)
+    row = next(r for r in prof["matrix"]["rows"] if r["kind"] == "fssai_licence")
+    assert row["cells"]["legal_name"]["state"] == "na" and row["cells"]["address"]["state"] == "na"      # nothing read, nothing counted against the score
+    assert prof["compliance"][0]["name_check"] == ""
+
+
 def test_a_page_that_is_your_document_is_not_also_a_generic_certificate():
     pages = [pg(1, "fssai_licence"), pg(1, "other_certificate")]                  # the reader (or its AI step) also called the page a generic certificate
     fields = [{"field": "x_fssai_licence", "value": "12345678901234", "page": 1, "doc_type": "fssai_licence", "snippet": "1"},

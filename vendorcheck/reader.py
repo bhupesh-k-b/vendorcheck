@@ -526,7 +526,7 @@ class HybridReader:
     def read_document(self, f: dict, progress=None, confidence=None, custom=None) -> dict:
         import hashlib
         import json as _json
-        kind = "doc-local3" + (":" + hashlib.sha1(_json.dumps(custom, sort_keys=True).encode()).hexdigest()[:8] if custom else "")   # new documents in Settings => read again once
+        kind = "doc-local4" + (":" + hashlib.sha1(_json.dumps(custom, sort_keys=True).encode()).hexdigest()[:8] if custom else "")   # new documents in Settings => read again once
         if (hit := self._cached(f, kind)):
             return hit
         from . import extract
@@ -543,7 +543,7 @@ class HybridReader:
             mine = [k for k in extract.custom_types(text, custom) if k not in r["types"]]                         # documents you added in Settings
             dropped = (set(extract.WEAK_TYPES) & set(r["types"])) if mine else set()        # a page that is clearly your document is not also a generic "other certificate"
             types = [t for t in r["types"] if t not in dropped] + mine
-            fields += [{**x, "page": n} for x in extract.custom_values(text, custom, types)]                     # and the numbers they carry
+            fields += [{**x, "page": n} for x in extract.custom_page_fields(text, custom, types)]                 # and the number and details they carry
             prev_form = "vendor_registration_form" in types
             if types:
                 for dt in types:

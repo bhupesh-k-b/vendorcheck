@@ -114,7 +114,8 @@ def build(sources: list[Source], threshold: float = 92, extra: list[tuple[str, s
     extra = extra or []
     ALL = FIELDS + [(f, l) for f, l in extra if f not in dict(FIELDS)]
     fnames = dict(ALL)
-    expected = {**EXPECTED, "typed": EXPECTED["typed"] + [f for f, _ in extra], **{k: [f] for k, f in (doc_fields or {}).items()}}
+    expected = {**EXPECTED, "typed": EXPECTED["typed"] + [f for f, _ in extra], **{k: ["legal_name", "address"] + ([f] if f else []) for k, f in (doc_fields or {}).items()}}
+    custom_kinds = set(doc_fields or {})
     optional_typed = {"account_holder"} | {f for f, _ in extra}
     with_derived_pan(sources)
     present = {f for s in sources for f in s.values}
@@ -152,7 +153,8 @@ def build(sources: list[Source], threshold: float = 92, extra: list[tuple[str, s
                 cells[f] = {"state": "proprietor", "value": s.proprietor,
                             "reason": f"The PAN card is in the proprietor's own name ({s.proprietor}). That is expected for a proprietorship, so it is not compared with the firm's name."}
                 continue
-            if f not in applicable or f not in expected.get(s.kind, []) or (s.kind == "typed" and f in optional_typed and not s.values.get(f)):
+            if f not in applicable or f not in expected.get(s.kind, []) or (s.kind == "typed" and f in optional_typed and not s.values.get(f)) \
+                    or (s.kind in custom_kinds and f in ("legal_name", "address") and not s.values.get(f)):      # a document you added need not state a name or address
                 cells[f] = {"state": "na", "value": "", "reason": ""}      # the typed holder name is optional: blank is neutral, not a gap
                 continue
             val = s.values.get(f, "")

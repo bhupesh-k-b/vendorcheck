@@ -140,6 +140,55 @@ def custom_types(text: str, custom: list[dict]) -> list[str]:
     return out
 
 
+# What a document states about the business, read from "label: value" pairs. The text reader often drops spaces, so labels allow none.
+INFO_LABEL = {"legal_name": "Name", "address": "Address", "kind_of_business": "Kind of business", "reference_no": "Reference no.",
+              "document_date": "Date", "valid_until": "Valid until"}
+_INFO_LABELS = [
+    ("legal_name", r"Name\s*of\s*(?:the\s*)?(?:Company|Organi[sz]ation|Firm|Operator|Applicant|FBO|Licensee|Business|Establishment|Unit|Enterprise)(?:\s*/\s*(?:Organi[sz]ation|Company|Firm))?", False),
+    ("address", r"(?:Premises?|Registered|Business|Unit)\s*Address|Address\s*of\s*(?:the\s*)?(?:Premises?|Business|Unit)|Premises?(?=\s*[:\-])", True),
+    ("kind_of_business", r"Kind\s*of\s*Business|Nature\s*of\s*Business", False),
+    ("reference_no", r"Reference\s*(?:No\.?|Number)", False),
+    ("document_date", r"(?<![A-Za-z])Date(?:\s*of\s*Issue)?\s*:", False),
+    ("valid_until", r"Valid\s*(?:Up\s*)?to|Valid\s*Till|Date\s*of\s*Expiry|Expiry\s*Date", False),
+]
+_NEXT_LABEL = re.compile(r"^\s*(?:Name\s*of|Kind\s*of|Nature\s*of|Mode\s*of|Category|Premises?|Registration|Fee|Penalty|Total|Transaction|Reference|Date|Valid|Licen[cs]e|Note|Razor|Page\s*\d|Address)", re.I)
+
+
+def document_details(text: str) -> dict[str, str]:
+    """The business name, premises address, kind of business, reference number, date and validity a document states about itself (first of each)."""
+    lines = (text or "").splitlines()
+    out: dict[str, str] = {}
+    for field, label, multi in _INFO_LABELS:
+        for i, line in enumerate(lines):
+            m = re.search(r"(?:" + label + r")\s*[:\-/]?\s*(.*)", line, re.I)
+            if not m:
+                continue
+            first = re.split(r"\s{2,}", m.group(1).strip())[0].strip(" :-")
+            parts = [first] if first else []
+            if multi or not parts:                       # the value can continue on the next line(s) until the next label
+                for nxt in lines[i + 1:i + 4]:
+                    if not nxt.strip() or _NEXT_LABEL.match(nxt):
+                        break
+                    parts.append(re.split(r"\s{2,}", nxt.strip())[0])
+                    if not multi:
+                        break
+            val = re.sub(r"\s+", " ", " ".join(parts)).strip(" :-,")[:200]
+            if len(val) >= 3 and re.search(r"[A-Za-z0-9]", val):
+                out[field] = val
+                break
+    return out
+
+
+def custom_page_fields(text: str, items: list[dict], types: list[str]) -> list[dict]:
+    """Everything to take from a page of a document you added: its number (if it has a format) and the details it states about the business."""
+    out = custom_values(text, items, types)
+    info = document_details(text)
+    for d in items or []:
+        if d["key"] in types:
+            out += [{"field": k, "value": val, "doc_type": d["key"], "snippet": val} for k, val in info.items()]
+    return out
+
+
 def custom_values(text: str, items: list[dict], types: list[str]) -> list[dict]:
     """The number of each item you added (format in Settings), found on a page where its document was recognised: the first run of up to five
     neighbouring words that fits the format. Returned as page-field candidates (x_<key>) typed to that document."""

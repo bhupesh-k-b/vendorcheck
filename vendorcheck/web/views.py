@@ -88,7 +88,9 @@ def case_rows(s: Session, status: str = "", waiting: str = "", q: str = "", sim:
         r = {"case": c, "gstin": gstin, "country": (vals.get("country") or "").upper(), "versions": c.current_version, "run": run,
              "runs": len(s.exec(select(Run.id).where(Run.case_id == c.id)).all()),
              "docs": len(ver.files) if ver else 0, "form": form_state(ver.declared) if ver else None,
-             "missing_items": [i["label"] for i in (ver.profile.get("compliance", []) if ver else []) if i.get("doc") == "missing" or i.get("number") in ("missing", "bad")],
+             "missing_items": [i["label"] + (" (name differs)" if i.get("name_check") == "differs" and i.get("doc") != "missing" else "")
+                               for i in (ver.profile.get("compliance", []) if ver else [])
+                               if i.get("doc") == "missing" or i.get("number") in ("missing", "bad") or i.get("name_check") == "differs"],
              "tta": seconds_between(c.created_at, c.decided_at) if c.decided_at else None}
         if status and c.status != status:
             continue

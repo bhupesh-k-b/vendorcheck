@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from sqlmodel import Session
 
+from . import extract
 from . import master as vm
 from . import countries as cn
 from . import validators as v
@@ -58,6 +59,7 @@ class RunState:
     country_inferred: bool = False
     checklist: list = field(default_factory=list)
     compliance: list = field(default_factory=list)      # your extra items: number and document status
+    item_details: dict = field(default_factory=dict)    # document you added -> the details it states (name, address, dates)
     sources: list = field(default_factory=list)
     matrix: dict = field(default_factory=dict)
     doc_map: list = field(default_factory=list)
@@ -124,6 +126,15 @@ def _fmt_ok(field_name: str, value: str) -> bool:
     return True
 
 
+def _item_value(st, key: str) -> tuple[str, str]:
+    """The number of an extra item: what the vendor typed, else what a document carries. Returns (value, 'typed' | 'document' | '')."""
+    typed = (st.typed.get("x_" + key) or "").strip()
+    if typed:
+        return typed, "typed"
+    doc = next((s_.values["x_" + key] for s_ in st.sources if s_.values.get("x_" + key)), "")
+    return (doc, "document") if doc else ("", "")
+
+
 def _is_low(fld: str, c: dict, floor: float = 0.0) -> bool:
     """Is this value read from pixels NOT trustworthy? Needs: the page read at or above the confidence minimum (policy), no '?', a well-formed
     value, and (when a second read exists) an identical second read. A second read that saw nothing is tolerated only for fields with a strong format check."""
@@ -175,7 +186,8 @@ def build_doc_map(st: RunState, foreign: dict, floor_pct: int = 0) -> list:
         for pg in range(1, n + 1):
             types = [p for p in doc["pages"] if p["page"] == pg]
             fields = [{"field": x["field"], "value": x["value"], "doc_type": x.get("doc_type", "")} for x in doc["fields"]
-                      if x["page"] == pg and x["field"] in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder", "new_name", "previous_name")]
+                      if x["page"] == pg and (x["field"] in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder", "new_name", "previous_name")
+                                              or x["field"] in extract.INFO_LABEL or x["field"].startswith("x_"))]
             confs = [p["confidence"] for p in types if p.get("confidence") is not None]
             pages.append({"page": pg, "types": [{"doc_type": p["doc_type"], "note": p.get("note", ""), "legible": p["legible"]} for p in types],
                           "conf": round(100 * min(confs)) if confs else None, "floor": floor_pct,
@@ -240,6 +252,9 @@ def stage_read(ctx, st: RunState) -> str:
                          title="retry reading the documents", mode="live", source="Document reader", reason=unavailable,
                          expected="Reader answers", found="Unreachable"))
             break
+        for x in doc["fields"]:
+            if x.get("doc_type") in custom_keys and x["field"] in extract.INFO_LABEL:
+                st.item_details.setdefault(x["doc_type"], {}).setdefault(x["field"], x["value"])
         mine = {p["page"] for p in doc["pages"] if p["doc_type"] in custom_keys}
         if mine:        # a page that is clearly a document you added is not also a generic "other certificate", "address proof" or "tax document"
             weak = {"address_proof", "other_certificate", "tax_filing_document"}
@@ -475,7 +490,7 @@ def stage_validate(ctx, st: RunState) -> str:
     if not (p.get("contact_name") and (p.get("contact_email") or p.get("contact_phone"))): missing.append("a contact name with an email or phone"); mfields += ["contact_name", "contact_email", "contact_phone"]
     cdet = [d for d in custom_details(pol) if applies_to(d, country)]                  # details added in Settings
     for d in cdet:
-        if d["required"] and not (st.typed.get("x_" + d["key"]) or "").strip():
+        if d["required"] and not _item_value(st, d["key"])[0]:                    # given on the form, or printed on a document
             missing.append(f"your {d['label']}"); mfields.append("x_" + d["key"])
     if missing:
         st.add(Check("R03", FLAG, owner="vendor", kind="vendor", mode="declared", source="Submission", expected="Legal name, country, tax ID, bank details, contact",
@@ -486,12 +501,12 @@ def stage_validate(ctx, st: RunState) -> str:
                      reason="Legal name, country, tax ID, bank details and a contact are present."))
 
     for d in cdet:                                                                      # format check of each detail you added
-        val, key = (st.typed.get("x_" + d["key"]) or "").strip(), "x_" + d["key"]
+        (val, src), key = _item_value(st, d["key"]), "x_" + d["key"]
         if not val:
             continue
         if format_ok(d["format"], val):
             st.add(Check("X3", PASS, key=f"X3:{d['key']}", name=f"{d['label']} format", mode="computed", source="Offline check", expected=f"Format {d['format']}", found=val,
-                         reason=f"The {d['label']} is in the expected format."))
+                         reason=f"The {d['label']} is in the expected format." + (" (Read from the document.)" if src == "document" else "")))
         else:
             st.add(Check("X3", FLAG, key=f"X3:{d['key']}", name=f"{d['label']} format", owner="vendor", kind="vendor", mode="computed", source="Offline check",
                          expected=f"Format {d['format']} (A letter, 9 digit, * either)", found=v.mask(val), title=f"send a valid {d['label']}",
@@ -1126,7 +1141,7 @@ def stage_reconcile(ctx, st: RunState) -> str:
                                                              "address": f"{g.get('address', '')} {g.get('pincode', '')}".strip()}, authority=True))
     if len(sources) >= 2:
         st.matrix = build_matrix(sources, thr, [("x_" + d["key"], d["label"]) for d in custom_details(ctx.policy) if applies_to(d, st.country)],
-                                 {d["key"]: "x_" + d["key"] for d in custom_docs(ctx.policy) if any(t["key"] == d["key"] for t in custom_details(ctx.policy))})
+                                 {d["key"]: ("x_" + d["key"] if any(t["key"] == d["key"] for t in custom_details(ctx.policy)) else "") for d in custom_docs(ctx.policy)})
         conf, mx = st.matrix["conflicts"], st.matrix
         r12_done = any(c.rule == "R12" and c.result in ("flag", "note") for c in st.checks.get("reconcile", []))
         if conf.get("legal_name") and not st.renames and not r12_done:
@@ -1150,8 +1165,8 @@ def stage_reconcile(ctx, st: RunState) -> str:
             why = "; ".join(sorted({c["reason"] for c in conf["address"]}))
             st.add(Check("R25", FLAG, owner="procurement", kind="confirm", mode="document", source="Cross-document check",
                          expected="The address proof shows the address the GST registration shows", found="Addresses differ", title="review the address difference",
-                         reason="The address on the address proof does not match the registered (GST) address. " + why,
-                         detail="Ask the vendor for an address proof for the registered place of business, or for the GST amendment if they moved."))
+                         reason="The addresses on the documents do not match. " + why,
+                         detail="Ask the vendor which address is current, for an address proof for the registered place of business, or for the amendment if they moved."))
         elif any(r["cells"]["address"]["state"] == "ok" for r in mx["rows"] if r["kind"] == "address_proof"):
             st.add(Check("R25", PASS, mode="document", source="Cross-document check", expected="Address proof matches the registered address", found="Matches",
                          reason="The address on the address proof matches the registered address (same PIN/ZIP and wording)."))
@@ -1254,19 +1269,24 @@ def stage_reconcile(ctx, st: RunState) -> str:
     dets = {d["key"]: d for d in custom_details(ctx.policy) if applies_to(d, st.country)}
     docs_ = {r.key: r for r in rows}
     st.compliance = []
+    thr_ = ctx.policy["name_match_threshold"]
     for d in custom_docs(ctx.policy):
         if d["key"] not in docs_ and d["key"] not in dets:
             continue                                                           # does not apply to this vendor
         row, det = docs_.get(d["key"]), dets.get(d["key"])
         st.compliance.append({"key": d["key"], "label": d["label"], "required": d.get("required", True), "doc": row.state if row else None, "where": row.where if row else "",
-                              "number": None, "value": "", "doc_value": ""})
+                              "number": None, "value": "", "doc_value": "",
+                              "details": [{"label": extract.INFO_LABEL[f], "value": val} for f, val in st.item_details.get(d["key"], {}).items()]})
+        doc_name = st.item_details.get(d["key"], {}).get("legal_name", "")
+        case_name = (st.typed.get("legal_name") or "").strip() or next((s_.values["legal_name"] for s_ in st.sources if s_.kind not in (d["key"], "typed") and s_.values.get("legal_name")), "")
+        st.compliance[-1]["name_check"] = ("" if not (doc_name and case_name) else ("ok" if v.names_match(doc_name, case_name, thr_) else "differs"))
     for key, det in dets.items():
         item = next((c for c in st.compliance if c["key"] == key), None)
         if item is None:
             item = {"key": key, "label": det.get("item") or det["label"], "required": det["required"], "doc": None, "where": "", "number": None, "value": "", "doc_value": ""}
             st.compliance.append(item)
-        val = (st.typed.get("x_" + key) or "").strip()
-        item["value"] = val
+        val, src = _item_value(st, key)
+        item["value"], item["number_src"] = val, src
         item["number_label"] = det["label"]
         item["number"] = ("ok" if format_ok(det["format"], val) else "bad") if val else ("missing" if det["required"] else "optional")
         item["doc_value"] = next((s_.values["x_" + key] for s_ in st.sources if s_.kind == key and s_.values.get("x_" + key)), "")
