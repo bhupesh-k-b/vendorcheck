@@ -19,7 +19,36 @@ BANKNAMES_PATH = DATA_DIR / "ifsc" / "banknames.json"
 IFSC_META_PATH = DATA_DIR / "ifsc" / "meta.json"
 
 
+# Keys a visitor pastes into Settings. Held in this process only: never written to disk, never rendered back.
+_RUNTIME: dict[str, str] = {}
+RUNTIME_KEYS = ("GSTINAPI_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEYS", "READER_PROVIDER")
+
+
+def set_runtime(values: dict[str, str]) -> None:
+    for k, v in values.items():
+        if k in RUNTIME_KEYS:
+            if v.strip():
+                _RUNTIME[k] = v.strip()
+            else:
+                _RUNTIME.pop(k, None)
+
+
+def clear_runtime() -> None:
+    _RUNTIME.clear()
+
+
+def has_runtime() -> bool:
+    return bool(_RUNTIME)
+
+
+def keys_enabled() -> bool:
+    """A deployment can switch the key form off with ALLOW_USER_KEYS=0."""
+    return os.getenv("ALLOW_USER_KEYS", "1").strip() != "0"
+
+
 def env(name: str, default: str = "") -> str:
+    if name in _RUNTIME:
+        return _RUNTIME[name]
     return os.getenv(name, default).strip()
 
 

@@ -26,8 +26,8 @@ class Ctx:
     extra: dict = field(default_factory=dict)
 
 
-def default_ctx() -> Ctx:
-    engine = db.make_engine()
+def build_adapters(engine):
+    """(GST adapter, document reader) from the keys currently configured."""
     # Local OCR + rules do the reading. A language model is optional and only reasons over the text of pages the rules cannot settle.
     if config.reader_provider() == "groq" and config.groq_key():
         llm = GroqReader(engine)
@@ -35,8 +35,13 @@ def default_ctx() -> Ctx:
         llm = OpenRouterReader(engine)
     else:
         llm = GeminiReader(engine) if config.gemini_key() else None
-    reader = HybridReader(engine, llm if config.env("READER_AI", "1") != "0" else None)
-    return Ctx(engine=engine, policy=load_policy(), gst=GstApi(engine), reader=reader, bav=CashfreeBav(),
+    return GstApi(engine), HybridReader(engine, llm if config.env("READER_AI", "1") != "0" else None)
+
+
+def default_ctx() -> Ctx:
+    engine = db.make_engine()
+    gst, reader = build_adapters(engine)
+    return Ctx(engine=engine, policy=load_policy(), gst=gst, reader=reader, bav=CashfreeBav(),
                pacing=config.pacing_seconds())
 
 

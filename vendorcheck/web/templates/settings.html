@@ -12,7 +12,7 @@
 
 <section class="card card-pad mt-6">
   <h2 class="section-title">Connections</h2>
-  <p class="section-sub">Credentials are read from the server environment and never displayed.</p>
+  <p class="section-sub">Credentials are never displayed. Without keys the app still runs end to end on the test bench and the simulated samples.</p>
   <dl class="mt-3 divide-y divide-slate-100">
     {{ status_row('GST registry', cfg.GSTINAPI_KEY) }}
     {{ status_row('Document reader', cfg.GEMINI_API_KEY) }}
@@ -22,6 +22,24 @@
   </dl>
   <form method="post" action="/settings/test-gst" class="mt-3"><button class="btn btn-ghost">Test GST connection</button></form>
 </section>
+
+{% if cfg.KEYS_OK %}
+<section class="card card-pad mt-5" id="keys">
+  <h2 class="section-title">Use your own API keys</h2>
+  <p class="section-sub">Optional. Paste a key to run live lookups and AI-assisted reading. Keys stay in this server's memory only, are never saved or shown again, and apply to everyone using this server until you remove them or it restarts.</p>
+  <form method="post" action="/settings/keys" class="mt-4 grid gap-4 sm:grid-cols-2" autocomplete="off">
+    <label class="block"><span class="block text-sm font-medium text-slate-900">GST registry key</span><span class="block text-xs text-slate-500">From gstinapi.in</span>
+      <input type="password" name="gstin_key" placeholder="gak_..." class="mt-1 w-full rounded-lg border-slate-300 text-sm" autocomplete="off"></label>
+    <div class="grid gap-2">
+      <label class="block"><span class="block text-sm font-medium text-slate-900">Document reader</span><span class="block text-xs text-slate-500">Used only for pages the local reader cannot settle</span>
+        <select name="ai_provider" class="mt-1 w-full rounded-lg border-slate-300 text-sm"><option value="gemini">Google Gemini</option><option value="groq">Groq</option><option value="openrouter">OpenRouter</option></select></label>
+      <input type="password" name="ai_key" placeholder="Reader API key" class="w-full rounded-lg border-slate-300 text-sm" autocomplete="off">
+    </div>
+    <div class="flex items-center gap-3 sm:col-span-2"><button class="btn btn-primary">Connect keys</button></div>
+  </form>
+  {% if cfg.MY_KEYS %}<form method="post" action="/settings/keys/clear" class="mt-2"><button class="btn btn-ghost">Remove my keys</button></form>{% endif %}
+</section>
+{% endif %}
 
 {% macro toggle(name, label, hint, on) %}
   <label class="flex cursor-pointer items-center justify-between gap-6 py-3.5">

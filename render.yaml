@@ -1,0 +1,13 @@
+# One-click deploy on Render: New → Blueprint → pick this repo.
+# No secrets live here. Visitors paste their own API keys in Settings → "Use your own API keys".
+services:
+  - type: web
+    name: vendorcheck
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ALLOW_USER_KEYS
+        value: "1"
+      - key: VENDORCHECK_PACING_MS
+        value: "700"

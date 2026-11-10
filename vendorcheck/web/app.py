@@ -17,7 +17,7 @@ from .. import policy as policy_mod
 from .. import simulation
 from .. import validators as v
 from ..adapters import ifsc as ifsc_adapter
-from ..context import default_ctx, sources_status
+from ..context import build_adapters, default_ctx, sources_status
 from ..examples import EXAMPLES, SAMPLE_FILES
 from ..models import Case, Run, Task, VendorMaster, Version, utcnow
 from ..reader import ReaderUnavailable
@@ -444,7 +444,7 @@ def create_app(ctx=None) -> FastAPI:
     def settings(request: Request):
         ctx = C(request)
         cfg = {"GEMINI_API_KEY": bool(config.groq_key() or config.gemini_key() or config.openrouter_key()), "GEMINI_MODEL": config.gemini_model(), "GSTINAPI_KEY": bool(config.gstin_key()),
-               "CASHFREE": bool(config.cashfree_id() and config.cashfree_secret()), "CASHFREE_ENV": config.cashfree_env()}
+               "CASHFREE": bool(config.cashfree_id() and config.cashfree_secret()), "CASHFREE_ENV": config.cashfree_env(), "KEYS_OK": config.keys_enabled(), "MY_KEYS": config.has_runtime()}
         return render(request, "settings.html", cfg=cfg, outage=db.get_kv(ctx.engine, "simulate_gst_outage") == "1", credits=db.get_kv(ctx.engine, "gst_credits_remaining"),
                       pol=ctx.policy, items_ui=policy_mod.items_for_ui(ctx.policy), item_presets={k: {"label": l, "format": f, "words": ", ".join(w), "applies": ap} for k, (l, f, w, ap) in policy_mod.ITEM_PRESETS.items()},
                       builtin_docs=policy_mod.BUILTIN_DOCS, doc_presets={k: {"label": l, "keywords": ", ".join(w), "applies": a} for k, (l, w, a) in policy_mod.DOC_PRESETS.items()},
@@ -456,6 +456,36 @@ def create_app(ctx=None) -> FastAPI:
                       reqs=policy_mod.REQUIREMENTS, evidence_label=policy_mod.EVIDENCE_LABEL, doc_modes=policy_mod.DOCUMENT_MODES,
                       policy_changed=db.get_kv(ctx.engine, "policy_changed"),
                       ifsc=ifsc_adapter.release_label(), result=request.query_params.get("result", ""))
+
+    @app.post("/settings/keys")
+    async def save_keys(request: Request):
+        """Bring your own keys. Held in server memory only; never stored on disk or shown again."""
+        if not config.keys_enabled():
+            return RedirectResponse("/settings?result=" + quote("Entering keys is switched off on this server."), 303)
+        form = await request.form()
+        provider = str(form.get("ai_provider", "")).strip().lower()
+        ai_key = str(form.get("ai_key", "")).strip()
+        gst_key = str(form.get("gstin_key", "")).strip()
+        values = {}
+        if gst_key:
+            values["GSTINAPI_KEY"] = gst_key
+        if ai_key and provider in ("groq", "gemini", "openrouter"):
+            values.update({"GROQ_API_KEY": "", "GEMINI_API_KEY": "", "OPENROUTER_API_KEYS": ""})
+            values[{"groq": "GROQ_API_KEY", "gemini": "GEMINI_API_KEY", "openrouter": "OPENROUTER_API_KEYS"}[provider]] = ai_key
+            values["READER_PROVIDER"] = provider
+        config.set_runtime(values)
+        st = request.app.state
+        st.ctx.gst, st.ctx.reader = build_adapters(st.ctx.engine)
+        st.sim_ctx = None
+        return RedirectResponse("/settings?result=" + quote("Your keys are connected for this server session. They are kept in memory only."), 303)
+
+    @app.post("/settings/keys/clear")
+    def clear_keys(request: Request):
+        config.clear_runtime()
+        st = request.app.state
+        st.ctx.gst, st.ctx.reader = build_adapters(st.ctx.engine)
+        st.sim_ctx = None
+        return RedirectResponse("/settings?result=" + quote("Keys removed from this server."), 303)
 
     @app.post("/settings/policy")
     async def save_policy_route(request: Request):
