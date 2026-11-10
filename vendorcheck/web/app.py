@@ -64,7 +64,10 @@ def create_app(ctx=None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters.update({"upfirst": lambda s: (s[:1].upper() + s[1:]) if s else s, "mask_ids": views.mask_ids, "ist": views.ist, "dur": views.dur, "mask": v.mask})
-    templates.env.globals.update({"STAGE_ORDER": views.STAGE_ORDER})
+    def asset_v() -> int:
+        """Changes whenever the stylesheet or script changes, so a browser never keeps an old copy."""
+        return max(int((HERE / "static" / n).stat().st_mtime) for n in ("app.css", "app.js"))
+    templates.env.globals.update({"STAGE_ORDER": views.STAGE_ORDER, "asset_v": asset_v})
 
     def sim_for(st):
         """The simulated-registry context, built once per base context."""
@@ -443,7 +446,8 @@ def create_app(ctx=None) -> FastAPI:
         cfg = {"GEMINI_API_KEY": bool(config.groq_key() or config.gemini_key() or config.openrouter_key()), "GEMINI_MODEL": config.gemini_model(), "GSTINAPI_KEY": bool(config.gstin_key()),
                "CASHFREE": bool(config.cashfree_id() and config.cashfree_secret()), "CASHFREE_ENV": config.cashfree_env()}
         return render(request, "settings.html", cfg=cfg, outage=db.get_kv(ctx.engine, "simulate_gst_outage") == "1", credits=db.get_kv(ctx.engine, "gst_credits_remaining"),
-                      pol=ctx.policy, builtin_docs=policy_mod.BUILTIN_DOCS, doc_presets={k: {"label": l, "keywords": ", ".join(w), "applies": a} for k, (l, w, a) in policy_mod.DOC_PRESETS.items()},
+                      pol=ctx.policy, items_ui=policy_mod.items_for_ui(ctx.policy), item_presets={k: {"label": l, "format": f, "words": ", ".join(w), "applies": ap} for k, (l, f, w, ap) in policy_mod.ITEM_PRESETS.items()},
+                      builtin_docs=policy_mod.BUILTIN_DOCS, doc_presets={k: {"label": l, "keywords": ", ".join(w), "applies": a} for k, (l, w, a) in policy_mod.DOC_PRESETS.items()},
                       doc_applies=policy_mod.APPLIES, doc_on={k: policy_mod.doc_enabled(ctx.policy, k) for k in policy_mod.BUILTIN_DOCS},
                       custom_items=[{"label": d["label"], "keywords": ", ".join(d["keywords"]), "need": d["need"], "applies": d["applies"]} for d in policy_mod.custom_docs(ctx.policy)],
                       detail_keys=policy_mod.DETAIL_KEYS, detail_on={k: policy_mod.detail_on(ctx.policy, k) for k in policy_mod.DETAIL_KEYS},

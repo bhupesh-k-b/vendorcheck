@@ -3,7 +3,7 @@
 **Files:** the five Mehta documents plus `mehta_aadhaar_specimen.pdf` (a fictional proprietor, masked number, watermarked SPECIMEN).
 
 **How to run:**
-1. **Settings → Verification policy → Compliance documents.** Choose the **Aadhaar card** template, press **Add document**, and **Save policy**. Optionally switch **Udyam certificate (MSME)** off.
+1. **Settings → Verification policy → Extra compliance items.** Choose the **Aadhaar card** template, press **Add item**, and **Save policy**. Optionally switch **Udyam certificate (MSME)** off under *Compliance documents*.
 2. **Load a sample → Separate files (Mehta, proprietor)** → Submit. The Required documents list now has **Aadhaar card: Missing**, and the vendor email asks for it.
 3. **Load a sample → Mehta with Aadhaar** → Submit. **Aadhaar card: Found** with its file and page.
 

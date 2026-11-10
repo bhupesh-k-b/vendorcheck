@@ -63,6 +63,8 @@ def main():
     copy("rheinland_eu_pack.pdf", edge / "09_german_vendor_with_documents")
     (edge / "10_typed_only_no_documents").mkdir(parents=True, exist_ok=True)
     (edge / "14_custom_identity_details").mkdir(parents=True, exist_ok=True)
+    for f in ("mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "mehta_fssai_specimen.pdf"):
+        copy(f, edge / "15_fssai_licence_item")
     for f in ("mehta_pan_card.pdf", "mehta_gst_certificate.pdf", "mehta_cancelled_cheque.pdf", "mehta_udyam_certificate.pdf", "mehta_electricity_bill.pdf", "mehta_aadhaar_specimen.pdf"):
         copy(f, edge / "13_custom_compliance_document")
     copy("rmc1_munitions_form_filled.pdf", edge / "11_bank_account_name_matches")
@@ -164,6 +166,7 @@ EDGE_INDEX = """
 | `10_typed_only_no_documents` | Problems that need no files | See its README (wrong GSTIN type, look-alike, duplicate vendor, bank change, wrong country ID) |
 | `11_bank_account_name_matches` | The name on the bank account is the vendor's own (Munitions India Limited) | Holder agrees across the typed form, the bank form and the legal name; the unit account counts as the company's |
 | `13_custom_compliance_document` | A document your company needs (Aadhaar) is added in Settings; one it does not (Udyam) is switched off | Shown as Found or Missing in the full case, requested in the vendor email |
+| `15_fssai_licence_item` | An item with both a number and a document (FSSAI licence) is added | Number and document shown as found or missing in the checklist, summary card, consistency table and dashboard |
 | `14_custom_identity_details` | An identity detail is added (TAN) and one is switched off (CIN) | New field on the form, format-checked live and on submit; the switched-off one disappears everywhere |
 | `12_bank_account_name_differs` | The typed account holder is a person, the bank document says the company | Holder flagged in the consistency table; finance reviews |
 """
@@ -292,13 +295,25 @@ is a unit account of the company, so it matches the legal name. The case still w
 
 **What else can go differently:** an account in a director's name; a different company's name (the pages are shown as another party's and not used); a joint account.
 """,
+"15_fssai_licence_item": """
+# An item with a number and a document (FSSAI licence)
+
+**Files:** the five Mehta documents plus `mehta_fssai_specimen.pdf` (a specimen licence page, fictional number).
+
+**How to run:**
+1. **Settings → Extra compliance items →** template **FSSAI licence → Add item → Save policy.** One item carries both the **number** (14 digits) and the **document** (recognised by "FSSAI"). Optionally switch **Certificate of incorporation** off under *Compliance documents*.
+2. **Load a sample → Separate files (Mehta, proprietor)** → Submit. The case shows **FSSAI licence: Missing** in *Required documents*, a **Compliance items** card ("Document missing · Number not provided"), a **Not provided** row and an FSSAI column in the *Consistency table*, and **Missing: FSSAI licence** on the dashboard row.
+3. **Load a sample → Mehta with FSSAI licence** → Submit. The document is **Found**, the number is read from the page and compared with the typed one (the consistency table shows ✓ and the evidence summary says *Match*).
+
+Each item has its own **on/off switch** in Settings: turn it off to stop checking it without deleting it.
+""",
 "14_custom_identity_details": """
 # Identity details you switch off or add yourself (TAN, CIN, bank)
 
 No files needed: this is about the typed details.
 
 **How to run:**
-1. **Settings → Verification policy → Identity details.** Choose the **TAN** template and press **Add detail** (format `AAAA99999A`: A = letter, 9 = digit, * = either). Switch **CIN** off. **Save policy.**
+1. **Settings → Verification policy → Extra compliance items.** Choose the **TAN** template and press **Add item** (number format `AAAA99999A`: A = letter, 9 = digit, * = either). Under *Identity details* switch **CIN** off. **Save policy.**
 2. **New submission:** a **TAN** field now appears under *Additional details* with a live hint, and the **CIN** field is gone.
 3. **Load a sample → Kaveri: happy test case (all documents)** (it carries a valid TAN) → Submit. The evidence summary has a **TAN** row with *Format ok* and no CIN row.
 4. Change the TAN to something wrong (for example `BAD1`) and submit: the case asks the vendor for **a valid TAN** and the email says so. Leave it empty and submit: it is asked as a required detail.
@@ -314,7 +329,7 @@ is not asked to confirm an account.
 **Files:** the five Mehta documents plus `mehta_aadhaar_specimen.pdf` (a fictional proprietor, masked number, watermarked SPECIMEN).
 
 **How to run:**
-1. **Settings → Verification policy → Compliance documents.** Choose the **Aadhaar card** template, press **Add document**, and **Save policy**. Optionally switch **Udyam certificate (MSME)** off.
+1. **Settings → Verification policy → Extra compliance items.** Choose the **Aadhaar card** template, press **Add item**, and **Save policy**. Optionally switch **Udyam certificate (MSME)** off under *Compliance documents*.
 2. **Load a sample → Separate files (Mehta, proprietor)** → Submit. The Required documents list now has **Aadhaar card: Missing**, and the vendor email asks for it.
 3. **Load a sample → Mehta with Aadhaar** → Submit. **Aadhaar card: Found** with its file and page.
 

@@ -35,17 +35,17 @@
       <thead>
         <tr class="border-b border-slate-100 text-xs text-slate-500">
           <th class="sticky left-0 z-10 bg-white px-5 py-3 text-left font-medium">Document</th>
-          {% for f, label in matrix.fields %}<th class="whitespace-nowrap px-2.5 py-3 text-center font-medium">{{ label|replace('Bank account no.', 'Account no.')|replace('Account holder', 'Holder') }}</th>{% endfor %}
+          {% for f, label in matrix.fields %}<th class="whitespace-nowrap px-2.5 py-3 text-center font-medium">{{ label|replace('Bank account no.', 'Account no.')|replace('Account holder', 'Holder')|replace(' number', ' no.') }}</th>{% endfor %}
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
         {% for r in matrix.rows %}
           {% set has_bad = r.cells.values()|selectattr('state', 'equalto', 'bad')|list|length > 0 %}
           {% set is_other = r.cells.values()|selectattr('state', 'equalto', 'foreign')|list|length > 0 %}
-          <tr class="{{ 'bg-rose-50/40' if has_bad }} {{ 'bg-amber-50/40' if is_other }}">
-            <th class="sticky left-0 z-10 px-5 py-3 text-left align-middle font-medium text-slate-900 {{ 'bg-rose-50' if has_bad else ('bg-amber-50' if is_other else 'bg-white') }}">
+          <tr class="{{ 'bg-rose-50/40' if has_bad }} {{ 'bg-amber-50/40' if is_other or r.absent }}">
+            <th class="sticky left-0 z-10 px-5 py-3 text-left align-middle font-medium text-slate-900 {{ 'bg-rose-50' if has_bad else ('bg-amber-50' if (is_other or r.absent) else 'bg-white') }}">
               <span class="block max-w-[12.5rem]">{{ r.label }}</span>
-              <span class="mono block max-w-[12.5rem] truncate text-[11px] font-normal text-slate-400" title="{{ r.ref }}">{{ r.ref }}</span>
+              {% if r.absent %}<span class="mt-1 block">{{ m.pill("warn", "Not provided") }}</span>{% else %}<span class="mono block max-w-[12.5rem] truncate text-[11px] font-normal text-slate-400" title="{{ r.ref }}">{{ r.ref }}</span>{% endif %}
             </th>
             {% for f, label in matrix.fields %}{% set c = r.cells[f] %}
               <td class="px-2.5 py-3 text-center align-middle" {% if c.reason %}title="{{ c.reason }}"{% endif %}>

@@ -62,7 +62,7 @@ def disabled_fields(policy: dict) -> set[str]:
 
 def custom_details(policy: dict) -> list[dict]:
     """Details you added: [{key, label, format, required, applies}]. The typed value is stored under x_<key>."""
-    return list((policy.get("details") or {}).get("custom") or [])
+    return [d for d in ((policy.get("details") or {}).get("custom") or []) if d.get("enabled", True)]
 
 
 def applies_to(d: dict, country: str) -> bool:
@@ -136,7 +136,7 @@ def doc_enabled(policy: dict, key: str) -> bool:
 
 def custom_docs(policy: dict) -> list[dict]:
     """The documents you added: [{key, label, keywords, need, applies}]."""
-    return list((policy.get("documents") or {}).get("custom") or [])
+    return [d for d in ((policy.get("documents") or {}).get("custom") or []) if d.get("enabled", True)]
 
 
 def load_policy(path: Path | None = None) -> dict:
@@ -212,8 +212,79 @@ def policy_from_form(form, current: dict) -> tuple[dict, list[str]]:
         errors.append("Blocklist entries not recognised and left out: " + ", ".join(bad[:5]) + ("…" if len(bad) > 5 else "") + ".")
     new["documents"] = documents_from_form(form, errors, current.get("documents"))
     new["details"] = details_from_form(form, errors, current.get("details"))
+    if form.get("items_form") == "1":                                # the unified extra-items list replaces both older lists
+        docs_c, dets_c = items_from_form(form, errors)
+        new["documents"]["custom"], new["details"]["custom"] = docs_c, dets_c
     new["blocklist"] = {"pans": [p for p in dict.fromkeys(pans) if _PAN.match(p)], "accounts": [a for a in dict.fromkeys(accounts) if re.fullmatch(r"\d{6,20}", a)]}
     return new, errors
+
+
+# quick-add templates for extra compliance items: key -> (label, number format or "", words on its document, applies to)
+ITEM_PRESETS = {
+    "fssai": ("FSSAI licence", "99999999999999", ["FSSAI", "FOOD SAFETY AND STANDARDS AUTHORITY"], "india"),
+    "tan": ("TAN", "AAAA99999A", ["TAX DEDUCTION ACCOUNT NUMBER", "TAN ALLOTMENT"], "india"),
+    "aadhaar": ("Aadhaar card", "", ["AADHAAR", "UNIQUE IDENTIFICATION AUTHORITY"], "india"),
+    "iso": ("ISO certificate", "", ["ISO 9001", "ISO 14001", "ISO 27001", "ISO 45001"], "all"),
+    "iec": ("Import Export Code (IEC)", "**********", ["IMPORTER EXPORTER CODE", "IMPORT EXPORT CODE", "DGFT"], "all"),
+    "shop": ("Shop and Establishment licence", "", ["SHOPS AND ESTABLISHMENT", "SHOP & ESTABLISHMENT"], "india"),
+    "trade": ("Trade licence", "", ["TRADE LICENCE", "TRADE LICENSE"], "all"),
+    "duns": ("D-U-N-S number", "999999999", [], "all"),
+    "lei": ("Legal Entity Identifier (LEI)", "********************", [], "all"),
+}
+
+
+def items_for_ui(policy: dict) -> list[dict]:
+    """Every extra item (enabled or not) as one row: name, number format, words on its document, required, applies, on/off. Documents and details with the same key are one item."""
+    docs = {d["key"]: d for d in ((policy.get("documents") or {}).get("custom") or [])}
+    dets = {d["key"]: d for d in ((policy.get("details") or {}).get("custom") or [])}
+    out = []
+    for key in [*docs, *[k for k in dets if k not in docs]]:
+        d, t = docs.get(key), dets.get(key)
+        out.append({"label": (d or t).get("item") or (d or t)["label"], "format": (t or {}).get("format", ""), "words": ", ".join((d or {}).get("keywords", [])),
+                    "need": (d or {}).get("need", 1), "required": "yes" if (d or t).get("required", True) else "no", "applies": (d or t).get("applies", "all"),
+                    "enabled": bool((d or t).get("enabled", True))})
+    return out
+
+
+def items_from_form(form, errors: list[str]) -> tuple[list[dict], list[dict]]:
+    """The extra compliance items on the Settings form. Each can have a number (format) and/or a document (words); returns (documents, details)."""
+    cols = {x: _getlist(form, f"item_{x}") for x in ("label", "format", "words", "need", "required", "applies", "enabled")}
+    taken = set(BUILTIN_DOCS) | {"legal_name", "gstin", "pan", "cin", "tax_id", "bank_account", "ifsc", "iban", "swift", "country", "account_holder", "routing_code",
+                                 "other", "vendor_registration_form", "stock_exchange_filing", "tax_filing_document", "other_certificate", "bank_details_form"}
+    docs, dets = [], []
+
+    def col(name, i, default=""):
+        return cols[name][i] if i < len(cols[name]) else default
+    for i, label in enumerate(cols["label"]):
+        label = label.strip()[:60]
+        if not label:
+            continue
+        fmt = col("format", i).strip().upper()[:40]
+        if fmt and not (re.sub(r"[\s\-]", "", fmt) and re.search(r"[A9*]", fmt)):
+            errors.append(f"{label}: the number format needs A (letter), 9 (digit) or * (letter or digit), for example AAAA99999A. The number was left out.")
+            fmt = ""
+        kws = [w.strip().upper() for w in re.split(r"[,\n]+", col("words", i)) if w.strip()][:12]
+        if not fmt and not kws:
+            errors.append(f"{label}: give a number format, words that appear on its document, or both. Left out.")
+            continue
+        if len(docs) + len(dets) >= 2 * MAX_CUSTOM_DOCS:
+            errors.append(f"At most {MAX_CUSTOM_DOCS} extra items. {label} left out.")
+            continue
+        key = _slug(label, taken)
+        taken.add(key)
+        scope = col("applies", i, "all")
+        scope = scope if scope in APPLIES else "all"
+        required = col("required", i, "yes") == "yes"
+        enabled = col("enabled", i, "on") != "off"
+        try:
+            need = max(1, min(int(col("need", i, "1") or 1), len(kws) or 1, 5))
+        except ValueError:
+            need = 1
+        if kws:
+            docs.append({"key": key, "label": label, "keywords": kws, "need": need, "applies": scope, "required": required, "enabled": enabled})
+        if fmt:
+            dets.append({"key": key, "label": f"{label} number" if kws else label, "item": label, "format": fmt, "required": required, "applies": scope, "enabled": enabled})
+    return docs, dets
 
 
 def _getlist(form, key: str) -> list[str]:

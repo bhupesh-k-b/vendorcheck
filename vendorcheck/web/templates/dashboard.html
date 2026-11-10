@@ -37,6 +37,7 @@
           <td class="px-4 py-3.5"><a href="/cases/{{ c.id }}" class="font-semibold text-slate-900 hover:text-accent-700">{{ c.display_name }}</a>
             <div class="mt-0.5 text-xs text-slate-500">{% if c.vendor_code %}{{ c.vendor_code }} · {% endif %}Version {{ r.versions }}{% if c.update_of %} · update to {{ c.update_of }}{% endif %}
               {% if c.sim %} · <span class="rounded bg-orange-50 px-1.5 py-0.5 font-semibold text-orange-800 ring-1 ring-orange-200">Simulated</span>{% endif %}
+              {% if r.missing_items %} · <span class="font-medium text-rose-700" title="Missing from this submission">Missing: {{ r.missing_items|join(', ') }}</span>{% endif %}
               {% if not r.docs %} · <span class="font-medium text-amber-700">No documents</span>{% endif %}
               {% if r.form %} · <span class="font-medium text-amber-700">{{ 'Form not filled' if r.form.state == 'empty' else 'Form incomplete' }}</span>{% endif %}</div></td>
           <td class="whitespace-nowrap px-4 py-3.5">{{ r.gstin|mask_ids or '—' }}{% if r.country %} <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">{{ r.country }}</span>{% endif %}</td>

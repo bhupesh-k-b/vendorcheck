@@ -160,7 +160,7 @@ def _save_profile(ctx, st: S.RunState) -> None:
     with Session(ctx.engine) as s:
         ver = s.get(Version, st.version.id)
         ver.profile = {"values": {k: v for k, v in st.profile.items() if v not in (None, "")}, "unconfirmed": st.unconfirmed, "prov": st.prov,
-                       "table": st.table, "matrix": st.matrix, "doc_map": st.doc_map, "checklist": st.checklist, "derived_pan": st.derived_pan, "renames": st.renames}
+                       "table": st.table, "matrix": st.matrix, "doc_map": st.doc_map, "checklist": st.checklist, "compliance": st.compliance, "derived_pan": st.derived_pan, "renames": st.renames}
         s.add(ver)
         s.commit()
 

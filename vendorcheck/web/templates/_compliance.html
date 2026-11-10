@@ -1,0 +1,34 @@
+{% import '_macros.html' as m %}
+{% if compliance %}
+<section class="mt-8" id="compliance" aria-labelledby="comp-h">
+  <div class="flex flex-wrap items-end justify-between gap-2">
+    <div><h2 id="comp-h" class="section-title">Compliance items</h2>
+      <p class="section-sub">What your policy asks for on top of the standard checks.</p></div>
+    {% set ns = namespace(n=0) %}
+    {% for c in compliance %}{% if c.doc == 'missing' or c.number in ['missing', 'bad'] %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+    {% if ns.n %}{{ m.pill('bad', ns.n ~ (' item missing' if ns.n == 1 else ' items missing')) }}{% else %}{{ m.pill('ok', 'All provided') }}{% endif %}
+  </div>
+  <ul class="card mt-3 divide-y divide-slate-100 overflow-hidden">
+    {% for c in compliance %}
+      {% set bad = c.doc == 'missing' or c.number in ['missing', 'bad'] %}
+      {% set good = not bad and (c.doc == 'found' or c.number == 'ok') %}
+      <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 {{ 'bg-rose-50/40' if bad }}">
+        {{ m.mark('bad' if bad else ('ok' if good else 'missing'), 'h-7 w-7') }}
+        <div class="min-w-0 flex-1 basis-56">
+          <p class="font-medium text-slate-900">{{ c.label }}</p>
+          <p class="text-xs text-slate-500">{{ 'Required' if c.required else 'Optional' }}{% if c.where %} · <span class="mono">{{ c.where }}</span>{% endif %}</p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          {% if c.doc == 'found' %}{{ m.pill('ok', 'Document found') }}
+          {% elif c.doc == 'missing' %}{{ m.pill('bad', 'Document missing') }}
+          {% elif c.doc == 'not_required' %}{{ m.pill('neutral', 'Document optional') }}{% endif %}
+          {% if c.number == 'ok' %}{{ m.pill('ok', 'Number ' ~ c.value) }}
+          {% elif c.number == 'bad' %}{{ m.pill('warn', 'Number format wrong') }}
+          {% elif c.number == 'missing' %}{{ m.pill('bad', 'Number not provided') }}
+          {% elif c.number == 'optional' %}{{ m.pill('neutral', 'Number not given') }}{% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

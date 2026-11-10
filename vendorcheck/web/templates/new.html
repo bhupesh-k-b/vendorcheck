@@ -20,7 +20,7 @@
 {% set groups = [('', ['happy_documents']),
                  ('India', ['zoho', 'munitions', 'infosys', 'eternal', 'eternal_old', 'tcs', 'zoho_duplicate', 'zoho_lookalike', 'zoho_bank_change']),
                  ('International', ['us_vendor', 'eu_vendor', 'wrong_country', 'eu_wrong_iban']),
-                 ('Document packs', ['munitions_form', 'rmc1_infosys', 'kaveri_complete', 'kaveri_clean', 'kaveri_messy', 'kaveri_holder_mismatch', 'mehta_separate', 'mehta_aadhaar', 'orchid_wrong', 'lakeview_pack', 'lakeview_indian_id', 'rheinland_pack'])] %}
+                 ('Document packs', ['munitions_form', 'rmc1_infosys', 'kaveri_complete', 'kaveri_clean', 'kaveri_messy', 'kaveri_holder_mismatch', 'mehta_separate', 'mehta_aadhaar', 'mehta_fssai', 'orchid_wrong', 'lakeview_pack', 'lakeview_indian_id', 'rheinland_pack'])] %}
 
 <form method="post" action="/submit" enctype="multipart/form-data" x-data="newForm(JSON.parse(document.getElementById('examples-data').textContent))" @submit="busy = true" class="mx-auto max-w-4xl">
   <script type="application/json" id="examples-data">{{ examples_json|safe }}</script>

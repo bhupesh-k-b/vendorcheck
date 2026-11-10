@@ -124,6 +124,14 @@ def aadhaar_specimen(name: str, dob: str, masked: str) -> Image.Image:
                     "Specimen for demonstration. Not a real ID.")
 
 
+def build_fssai():
+    """A SPECIMEN FSSAI-style licence page for the fictional Mehta trading firm, with a fictional licence number. For demonstrating a document you add in Settings."""
+    to_pdf([text_doc("FSSAI LICENCE", "Food Safety and Standards Authority of India (specimen)",
+                     [("Licence Number", "12345678901234"), ("Name of Operator", "MEHTA AND SONS TRADERS"), ("Kind of Business", "Wholesale trading of food products"),
+                      ("Premises", "Plot 7, GIDC Vatva, Ahmedabad, Gujarat"), ("Valid Upto", "31 Dec 2027")],
+                     "Specimen for demonstration. Not a real licence.")], OUT / "mehta_fssai_specimen.pdf")
+
+
 def build_aadhaar():
     to_pdf([aadhaar_specimen("RAJESH MEHTA", "14/06/1979", "XXXX XXXX 9012")], OUT / "mehta_aadhaar_specimen.pdf")
 

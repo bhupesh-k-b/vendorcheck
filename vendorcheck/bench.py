@@ -7,6 +7,7 @@ Real evidence never takes this path: the real policy never accepts `recorded` or
 Vendors here are FICTIONAL and their GST responses are synthetic (engine logic only). Real-vendor scenarios
 that stop at an offline check (E2, E3) use the real examples; scenarios needing a live GST answer for a real
 vendor appear only once real responses are captured into fixtures/gst/ (scripts/capture_fixtures.py)."""
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -17,7 +18,9 @@ from .adapters.gst import RecordedGst
 from .context import Ctx
 from .examples import EXAMPLES
 from .models import Case, StageEvent, Task, VendorMaster
-from .policy import load_policy, simulation_policy
+from copy import deepcopy
+
+from .policy import DEFAULTS, simulation_policy
 from .reader import StaticReader
 
 # ----- fictional vendor -----
@@ -67,7 +70,7 @@ def _pdf(name: str) -> dict:
 
 RULE_NAME = {"R01": "Duplicate check", "R03": "Required details", "R06": "GSTIN format", "R08": "PAN inside GSTIN", "R09": "Bank format", "R10": "CIN",
              "R11": "GST registry", "R12": "Legal name", "R16": "Bank account", "R18": "Bank change", "R19": "Blocklist", "R20": "Source available",
-             "R21": "Taxpayer type", "R23": "Country of tax ID", "R26": "Required documents", "X2": "Account holder name"}
+             "R21": "Taxpayer type", "R23": "Country of tax ID", "R26": "Required documents", "X2": "Account holder name", "X3": "Extra detail format"}
 
 
 def _documents_scenario() -> Scenario:
@@ -99,6 +102,65 @@ def _no_documents_scenario() -> Scenario:
     return Scenario("D1", "No documents provided", "Typed details only: noted as 'No documents provided', never blocked or called missing",
                     [Step(FORM, expect={"status": "pending", "waiting_on": "finance", "rules": {"R26": "info", "R11": "pass"}})],
                     {GSTIN: gst_fx()}, policy={"require_documents": "if_uploaded"})
+
+
+def _item(label: str, fmt: str = "", words=(), required: bool = True, applies: str = "india"):
+    """An extra compliance item as Settings stores it: (document entry or None, detail entry or None)."""
+    key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    doc = {"key": key, "label": label, "keywords": [w.upper() for w in words], "need": 1, "applies": applies, "required": required, "enabled": True} if words else None
+    det = {"key": key, "label": f"{label} number" if words else label, "item": label, "format": fmt, "required": required, "applies": applies, "enabled": True} if fmt else None
+    return doc, det
+
+
+def _items_policy(*items, **over) -> dict:
+    pairs = [_item(*i) if isinstance(i, tuple) else _item(i) for i in items]
+    return {"documents": {"enabled": {}, "custom": [d for d, _ in pairs if d]}, "details": {"enabled": {}, "custom": [t for _, t in pairs if t]}, **over}
+
+
+FSSAI = ("FSSAI licence", "99999999999999", ("FSSAI", "FOOD SAFETY AND STANDARDS AUTHORITY"), True)      # a 14-digit number AND its certificate
+TAN = ("TAN", "AAAA99999A", (), True)                                                                # a number only
+FSSAI_NO = "12345678901234"
+TAN_NO = "BLUE12345H"
+
+
+def _fssai_pack(with_fssai_page: bool):
+    """Every standard document, plus (optionally) the FSSAI licence page carrying its number."""
+    f = _pdf("blue-heron-fssai-pack.pdf")
+    kinds = ["vendor_registration_form", "pan_card", "gst_certificate", "cancelled_cheque_or_bank_letter", "address_proof", "incorporation_or_name_change_certificate"]
+    addr = "1 Test Road Mumbai Maharashtra 400001"
+    spec = [(1, "legal_name", NAME), (1, "pan", PAN), (1, "gstin", GSTIN), (1, "cin", CIN), (1, "bank_account", BANK[0]), (1, "ifsc", BANK[1]),
+            (2, "pan", PAN), (2, "legal_name", NAME), (3, "gstin", GSTIN), (3, "pan", PAN), (3, "legal_name", NAME), (3, "address", addr),
+            (4, "bank_account", BANK[0]), (4, "ifsc", BANK[1]), (4, "account_holder", NAME), (5, "address", addr), (6, "cin", CIN), (6, "legal_name", NAME)]
+    pages = [{"page": i, "doc_type": k, "legible": True, "handwritten": False, "note": ""} for i, k in enumerate(kinds, 1)]
+    fields = [{"field": fld, "value": val, "page": pgn, "doc_type": kinds[pgn - 1], "snippet": val} for pgn, fld, val in spec]
+    if with_fssai_page:
+        pages.append({"page": 7, "doc_type": "fssai_licence", "legible": True, "handwritten": False, "note": ""})
+        fields.append({"field": "x_fssai_licence", "value": FSSAI_NO, "page": 7, "doc_type": "fssai_licence", "snippet": FSSAI_NO})
+    return f, StaticReader({f["name"]: {"pages": pages, "fields": fields, "hints": {}}})
+
+
+def _fssai_scenarios() -> list[Scenario]:
+    """The FSSAI licence number (and certificate) required together with a TAN and the standard details and documents."""
+    bank_ok = [("resolve", "R16", "arjun", "confirmed"), ("approve", "R16", "neha")]
+    both = dict(FORM, account_holder=NAME, x_fssai_licence=FSSAI_NO, x_tan=TAN_NO)
+    f_ok, r_ok = _fssai_pack(True)
+    f_no, r_no = _fssai_pack(False)
+    pol = _items_policy(FSSAI, TAN, require_documents="always")
+    return [
+        Scenario("F1", "FSSAI licence required with other things: everything provided",
+                 "Typed details, the FSSAI licence number and certificate, a TAN and all standard documents. Every item found, details agree, two people approve",
+                 [Step(both, files=[f_ok], expect={"status": "pending", "waiting_on": "finance", "all_items": True, "all_documents": True, "min_score": 100,
+                                                  "rules": {"X3": "pass", "R26": "pass", "R11": "pass"}}),
+                  Step(actions=bank_ok, expect={"status": "approved", "all_items": True})], {GSTIN: gst_fx()}, reader=r_ok, policy=pol),
+        Scenario("F2", "FSSAI licence number required but not given", "The vendor leaves the required FSSAI licence number and the TAN out: asked for both, owned by the vendor",
+                 [Step(FORM, expect={"status": "pending", "waiting_on": "vendor", "missing_item": "FSSAI licence", "rules": {"R03": "flag"}})], {GSTIN: gst_fx()}, policy=_items_policy(FSSAI, TAN)),
+        Scenario("F3", "FSSAI licence number in the wrong format", "A 4-digit FSSAI number is flagged to the vendor; the TAN is fine",
+                 [Step(dict(FORM, x_fssai_licence="1234", x_tan=TAN_NO), expect={"status": "pending", "waiting_on": "vendor", "missing_item": "FSSAI licence"})],
+                 {GSTIN: gst_fx()}, policy=_items_policy(FSSAI, TAN)),
+        Scenario("F4", "FSSAI licence certificate missing from the documents", "The number is typed and every standard document is attached, but the FSSAI certificate is not: flagged to the vendor",
+                 [Step(both, files=[f_no], expect={"status": "pending", "waiting_on": "vendor", "missing_item": "FSSAI licence", "rules": {"R26": "flag", "X3": "pass"}})],
+                 {GSTIN: gst_fx()}, reader=r_no, policy=pol),
+    ]
 
 
 def _rename_scenario(flip: bool) -> Scenario:
@@ -142,7 +204,7 @@ def build_scenarios() -> list[Scenario]:
     z, lk, tcs = EXAMPLES["zoho"]["fields"], EXAMPLES["zoho_lookalike"]["fields"], EXAMPLES["tcs"]["fields"]
     bank_ok = [("resolve", "R16", "arjun", "confirmed"), ("approve", "R16", "neha")]
     return [
-        _documents_scenario(), _no_documents_scenario(),
+        _documents_scenario(), _no_documents_scenario(), *_fssai_scenarios(),
         Scenario("H1", "Happy path (fictional vendor)", "Seven stages; GST passes; waits on finance for the bank; two people approve",
                  [Step(FORM, expect={"status": "pending", "waiting_on": "finance", "rules": {"R11": "pass", "R06": "pass", "R08": "pass"}}),
                   Step(actions=bank_ok, expect={"status": "approved"})], {GSTIN: gst_fx()}),
@@ -191,7 +253,7 @@ def build_scenarios() -> list[Scenario]:
 
 
 def make_ctx(sc: Scenario) -> Ctx:
-    pol = load_policy()
+    pol = deepcopy(DEFAULTS)          # the bench runs on the shipped defaults, never on the live policy edited in Settings
     pol["require_documents"] = "off"          # bench scenarios are about other rules unless they set it themselves
     for k, val in sc.policy.items():
         pol[k] = val
@@ -242,6 +304,12 @@ def run_scenario(sc: Scenario) -> dict:
                 req = [r for r in prof.get("checklist", []) if r["required"]]
                 if not req or any(r["state"] != "found" for r in req):
                     problems.append("not every required document was found")
+            comp = prof.get("compliance") or []
+            lacking = [i["label"] for i in comp if i.get("doc") == "missing" or i.get("number") in ("missing", "bad")]
+            if e.get("all_items") and (not comp or lacking):
+                problems.append(f"an extra item is missing or wrong: {', '.join(lacking) or 'none configured'}")
+            if e.get("missing_item") and e["missing_item"] not in lacking:
+                problems.append(f"{e['missing_item']} was not marked missing")
             if "min_score" in e:
                 score = (prof.get("matrix") or {}).get("score")
                 if score is None or score < e["min_score"]:

@@ -88,6 +88,7 @@ def case_rows(s: Session, status: str = "", waiting: str = "", q: str = "", sim:
         r = {"case": c, "gstin": gstin, "country": (vals.get("country") or "").upper(), "versions": c.current_version, "run": run,
              "runs": len(s.exec(select(Run.id).where(Run.case_id == c.id)).all()),
              "docs": len(ver.files) if ver else 0, "form": form_state(ver.declared) if ver else None,
+             "missing_items": [i["label"] for i in (ver.profile.get("compliance", []) if ver else []) if i.get("doc") == "missing" or i.get("number") in ("missing", "bad")],
              "tta": seconds_between(c.created_at, c.decided_at) if c.decided_at else None}
         if status and c.status != status:
             continue
@@ -258,7 +259,7 @@ def run_view(s: Session, run_id: int, user: dict) -> dict | None:
     return {"dup": _duplicates(stages), "form_state": form_state(ver.declared), "run": run, "case": case, "version": ver, "stages": stages, "running": running, "is_latest": bool(is_latest), "decision": decision, "items": items,
             "tasks": tasks, "table": ver.profile.get("table", []), "matrix": ver.profile.get("matrix") or None,
             "links": verify_links({**ver.declared, **ver.profile.get("values", {})}, stages, case.id),
-            "doc_map": ver.profile.get("doc_map", []), "files": ver.files, "checklist": ver.profile.get("checklist", []),
+            "doc_map": ver.profile.get("doc_map", []), "files": ver.files, "checklist": ver.profile.get("checklist", []), "compliance": ver.profile.get("compliance", []),
             "n_open": sum(1 for s_ in stages for c_ in s_["checks"] if c_["result"] in ("flag", "wait", "reject")),
             "pv": {**ver.declared, **ver.profile.get("values", {})},
             "country": (ver.profile.get("values", {}).get("country") or ver.declared.get("country") or "").upper(),

@@ -526,7 +526,7 @@ class HybridReader:
     def read_document(self, f: dict, progress=None, confidence=None, custom=None) -> dict:
         import hashlib
         import json as _json
-        kind = "doc-local2" + (":" + hashlib.sha1(_json.dumps(custom, sort_keys=True).encode()).hexdigest()[:8] if custom else "")   # new documents in Settings => read again once
+        kind = "doc-local3" + (":" + hashlib.sha1(_json.dumps(custom, sort_keys=True).encode()).hexdigest()[:8] if custom else "")   # new documents in Settings => read again once
         if (hit := self._cached(f, kind)):
             return hit
         from . import extract
@@ -540,12 +540,15 @@ class HybridReader:
             strong = [t for t in r["types"] if t not in extract.WEAK_TYPES]
             if not strong and prev_form and (r["types"] or extract.FORM_MARKERS.search(text)):
                 r = extract.read_page(text, force=["vendor_registration_form"])      # continuation of a multi-page form
-            types = list(r["types"]) + [k for k in extract.custom_types(text, custom) if k not in r["types"]]     # documents you added in Settings
+            mine = [k for k in extract.custom_types(text, custom) if k not in r["types"]]                         # documents you added in Settings
+            dropped = (set(extract.WEAK_TYPES) & set(r["types"])) if mine else set()        # a page that is clearly your document is not also a generic "other certificate"
+            types = [t for t in r["types"] if t not in dropped] + mine
+            fields += [{**x, "page": n} for x in extract.custom_values(text, custom, types)]                     # and the numbers they carry
             prev_form = "vendor_registration_form" in types
             if types:
                 for dt in types:
                     pages.append({"page": n, "doc_type": dt, "legible": True, "handwritten": False, "note": f"recognised by rules ({dt.replace('_', ' ')})"})
-                fields += [{**x, "page": n} for x in r["fields"]]
+                fields += [{**x, "page": n} for x in r["fields"] if x.get("doc_type") not in dropped]
                 if r["missing"]:
                     ask[n] = text
             elif len(text.strip()) < 20:

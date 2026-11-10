@@ -93,7 +93,9 @@ def build(profile: dict, doc_map: list[dict], policy: dict | None = None) -> lis
             continue
         hits = pages.get(d["key"], [])
         where = f"{hits[0]['file']} p.{hits[0]['page']}" + (f" (+{len(hits) - 1} more)" if len(hits) > 1 else "") if hits else ""
-        rows.append(Row(d["key"], d["label"], True, "required by your compliance policy", "found" if hits else "missing", where, None, [(h["file"], h["page"]) for h in hits]))
+        need = d.get("required", True)
+        state = "found" if hits else ("missing" if need else "not_required")
+        rows.append(Row(d["key"], d["label"], need, "required by your compliance policy" if need else "optional in your compliance policy", state, where, None, [(h["file"], h["page"]) for h in hits]))
     return rows
 
 

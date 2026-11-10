@@ -61,8 +61,12 @@ Open the dashboard. Say: "The dashboard keeps history across runs: status, outco
 - **Zoho duplicate** (run after Zoho): "Existing vendor found", no new record or code.
 - **TCS wrong GSTIN**: tax-collector GSTIN flagged instantly, no credit spent.
 - **Settings → Verification policy**: change the name-match threshold, the minimum reading confidence or accepted evidence live.
-- **Identity details** (Settings): switch off GSTIN, PAN, CIN or bank details, or add your own (for example **TAN**, with a simple format like `AAAA99999A`). The new field appears on the form with a live format hint and is required or
-  optional as you set it. Load the Kaveri happy test case: a valid TAN gives a "Format ok" row; a wrong one asks the vendor for a valid TAN. Folder `14_custom_identity_details` has the steps.
+- **FSSAI licence required together with other things** (Test bench, scenarios **F1 to F4**): the FSSAI licence number and certificate plus a TAN, on top of every standard detail and document.
+  F1 everything provided, approved by two people; F2 number and TAN left out, asked of the vendor; F3 a wrong-format number; F4 the certificate missing from an otherwise complete document set.
+- **Extra compliance items** (Settings): add anything your company needs, as a **number** (a form field with a format like `AAAA99999A`), a **document** (recognised by words on the page), or both, for example **FSSAI licence**.
+  Each has its own on/off switch. It appears as found or missing in Required documents, a Compliance items card on the case overview, the consistency table (an FSSAI column and a "Not provided" row) and the dashboard
+  ("Missing: FSSAI licence"). Load **Mehta (separate files)** to see it missing, then **Mehta with FSSAI licence** to see the document found and the number matched. Folder `15_fssai_licence_item`.
+- **Identity details** (Settings): switch off GSTIN, PAN, CIN or bank details. They disappear from the form and are ignored everywhere. Folder `14_custom_identity_details` has the steps for adding a TAN.
 - **Compliance documents** (Settings): add a document your company needs (for example **Aadhaar card** from the template) and switch off one you don't (for example Udyam). Then **Load a sample → Separate files (Mehta)**:
   the new document shows **Missing** and the vendor email asks for it; **Mehta with Aadhaar** shows it **Found**. Folder `13_custom_compliance_document` has the files and steps.
 

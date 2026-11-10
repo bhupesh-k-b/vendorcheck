@@ -114,6 +114,7 @@
 
   {% if not running and is_latest %}
   {# ---------- actions by owner ---------- #}
+  {% include "_compliance.html" %}
   <section class="mt-8" aria-labelledby="actions-h">
     <h2 id="actions-h" class="section-title">Next steps</h2>
     {% if not items %}

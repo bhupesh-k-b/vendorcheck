@@ -1,14 +1,22 @@
 """Test harness. Vendors here are FICTIONAL and their GST 'responses' are labelled synthetic: they exercise
 the engine only. Real government responses are captured separately (scripts/capture_fixtures.py) once a key exists."""
+from pathlib import Path
+
 import pytest
 
-from vendorcheck import db
+from vendorcheck import config, db
 from vendorcheck import validators as v
 from vendorcheck.adapters import ifsc
 from vendorcheck.adapters.gst import RecordedGst
 from vendorcheck.context import Ctx
 from vendorcheck.policy import load_policy, simulation_policy
 from vendorcheck.reader import StaticReader
+
+@pytest.fixture(autouse=True)
+def baseline_policy(monkeypatch):
+    """Every test runs on a frozen copy of the shipped policy, never on the live policy.yaml, which is edited from the Settings page."""
+    monkeypatch.setattr(config, "POLICY_PATH", Path(__file__).parent / "baseline_policy.yaml")
+
 
 # fictional vendor
 PAN = "AAACB1234C"

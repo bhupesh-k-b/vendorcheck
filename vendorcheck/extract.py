@@ -140,6 +140,23 @@ def custom_types(text: str, custom: list[dict]) -> list[str]:
     return out
 
 
+def custom_values(text: str, items: list[dict], types: list[str]) -> list[dict]:
+    """The number of each item you added (format in Settings), found on a page where its document was recognised: the first run of up to five
+    neighbouring words that fits the format. Returned as page-field candidates (x_<key>) typed to that document."""
+    from .policy import format_ok
+    out = []
+    tokens = re.findall(r"[A-Z0-9/\-]+", (text or "").upper())
+    for d in items or []:
+        if not d.get("format") or d["key"] not in types:
+            continue
+        for i in range(len(tokens)):
+            hit = next(("".join(tokens[i:i + n]) for n in range(1, 6) if format_ok(d["format"], "".join(tokens[i:i + n]))), None)
+            if hit:
+                out.append({"field": "x_" + d["key"], "value": re.sub(r"[\s\-]", "", hit), "doc_type": d["key"], "snippet": hit})
+                break
+    return out
+
+
 def identifiers(text: str) -> dict[str, list[str]]:
     """Every identifier-shaped token on the page, in reading order, de-duplicated."""
     up = _norm(text).upper()

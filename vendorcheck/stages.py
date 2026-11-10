@@ -57,6 +57,7 @@ class RunState:
     country: str = ""
     country_inferred: bool = False
     checklist: list = field(default_factory=list)
+    compliance: list = field(default_factory=list)      # your extra items: number and document status
     sources: list = field(default_factory=list)
     matrix: dict = field(default_factory=dict)
     doc_map: list = field(default_factory=list)
@@ -183,10 +184,11 @@ def build_doc_map(st: RunState, foreign: dict, floor_pct: int = 0) -> list:
     return out
 
 
-def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0) -> list:
+def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0, custom_keys=frozenset(), titles=None) -> list:
     """One matrix row per document (file x document type) plus the typed form."""
     out = []
     tv = {k: typed[k] for k in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder") if typed.get(k)}
+    tv.update({k: typed[k] for k in typed if k.startswith("x_") and typed.get(k)})        # numbers added in Settings
     if tv:
         out.append(MSource("typed", "New submission form", dict(tv)))
     groups: dict[tuple, MSource] = {}
@@ -194,16 +196,16 @@ def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0) ->
     # one row per page for everything except the registration form (a form is one document however many pages it spans),
     # so "page 9 says X but page 10 says Y" is visible
     for fld, cs in cands.items():
-        mf = MATRIX_FIELD.get(fld)
+        mf = MATRIX_FIELD.get(fld) or (fld if fld.startswith("x_") else None)
         if not mf:
             continue
         for c in cs:
-            if c["doc_type"] not in RECOGNISED:
+            if c["doc_type"] not in RECOGNISED and c["doc_type"] not in custom_keys:
                 continue
             key = (c["file"], c["doc_type"], 0 if c["doc_type"] == FORM_DOC else c["page"])
             if c.get("foreign") and key not in groups:
                 groups[key] = MSource(c["doc_type"], c["file"], {}, foreign=c["foreign"])
-            s = groups.setdefault(key, MSource(c["doc_type"], c["file"], {}))
+            s = groups.setdefault(key, MSource(c["doc_type"], c["file"], {}, title=(titles or {}).get(c["doc_type"], "")))
             pages.setdefault(key, set()).add(c["page"])
             low = fld in CRITICAL and c["imagey"] and _is_low(fld, c, floor)
             if mf not in s.values:
@@ -221,7 +223,8 @@ def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0) ->
 def stage_read(ctx, st: RunState) -> str:
     typed = st.typed
     floor = ctx.policy.get("read_confidence", 80) / 100      # the reading-confidence minimum (Settings)
-    custom = custom_docs(ctx.policy)                          # documents added in Settings
+    fmts = {d["key"]: d["format"] for d in custom_details(ctx.policy)}
+    custom = [{**d, "format": fmts.get(d["key"], "")} for d in custom_docs(ctx.policy)]      # documents added in Settings (with the number they carry)
     custom_keys = {d["key"] for d in custom}
     confirmed = set(typed.get("_confirmed", []))
     cands: dict[str, list[dict]] = {}
@@ -237,6 +240,11 @@ def stage_read(ctx, st: RunState) -> str:
                          title="retry reading the documents", mode="live", source="Document reader", reason=unavailable,
                          expected="Reader answers", found="Unreachable"))
             break
+        mine = {p["page"] for p in doc["pages"] if p["doc_type"] in custom_keys}
+        if mine:        # a page that is clearly a document you added is not also a generic "other certificate", "address proof" or "tax document"
+            weak = {"address_proof", "other_certificate", "tax_filing_document"}
+            doc = {**doc, "pages": [p for p in doc["pages"] if not (p["page"] in mine and p["doc_type"] in weak)],
+                   "fields": [x for x in doc["fields"] if not (x["page"] in mine and x.get("doc_type") in weak)]}
         n_pages = max([p["page"] for p in doc["pages"]] or [1])
         img_pages = imagey_pages(f, n_pages)          # pages whose digits must be read from pixels
         imagey = bool(img_pages)
@@ -329,7 +337,7 @@ def stage_read(ctx, st: RunState) -> str:
                          "details, and no bank document in the vendor's own name was found.",
                          vendor_text=vtext("R04_foreign", file=fn, pages=pgs, holder=holder, vendor=vendor_name), vendor_upload=True, **common))
     st.doc_map = build_doc_map(st, foreign, round(100 * floor))
-    st.sources = build_sources(st, cands, typed, floor)
+    st.sources = build_sources(st, cands, typed, floor, custom_keys, {d["key"]: d["label"] for d in custom})
 
     # ---- merge: typed > registration form > other documents; critical numbers must be confident ----
     profile: dict[str, Any] = {}
@@ -1117,7 +1125,8 @@ def stage_reconcile(ctx, st: RunState) -> str:
         sources.append(MSource("government", st.gst.source, {"gstin": v.clean(p.get("gstin")), "legal_name": g["legal_name"],
                                                              "address": f"{g.get('address', '')} {g.get('pincode', '')}".strip()}, authority=True))
     if len(sources) >= 2:
-        st.matrix = build_matrix(sources, thr)
+        st.matrix = build_matrix(sources, thr, [("x_" + d["key"], d["label"]) for d in custom_details(ctx.policy) if applies_to(d, st.country)],
+                                 {d["key"]: "x_" + d["key"] for d in custom_docs(ctx.policy) if any(t["key"] == d["key"] for t in custom_details(ctx.policy))})
         conf, mx = st.matrix["conflicts"], st.matrix
         r12_done = any(c.rule == "R12" and c.result in ("flag", "note") for c in st.checks.get("reconcile", []))
         if conf.get("legal_name") and not st.renames and not r12_done:
@@ -1241,9 +1250,43 @@ def stage_reconcile(ctx, st: RunState) -> str:
             st.add(Check("R26", PASS, mode="document", source="Document checklist", expected="All required documents present",
                          found=f"{sum(1 for r in rows if r.required)} of {sum(1 for r in rows if r.required)} found", reason="Every required document was found, whether in one PDF or several files."))
 
+    # ---- your extra items: number and document status, for the case overview, the dashboard and the consistency table ----
+    dets = {d["key"]: d for d in custom_details(ctx.policy) if applies_to(d, st.country)}
+    docs_ = {r.key: r for r in rows}
+    st.compliance = []
+    for d in custom_docs(ctx.policy):
+        if d["key"] not in docs_ and d["key"] not in dets:
+            continue                                                           # does not apply to this vendor
+        row, det = docs_.get(d["key"]), dets.get(d["key"])
+        st.compliance.append({"key": d["key"], "label": d["label"], "required": d.get("required", True), "doc": row.state if row else None, "where": row.where if row else "",
+                              "number": None, "value": "", "doc_value": ""})
+    for key, det in dets.items():
+        item = next((c for c in st.compliance if c["key"] == key), None)
+        if item is None:
+            item = {"key": key, "label": det.get("item") or det["label"], "required": det["required"], "doc": None, "where": "", "number": None, "value": "", "doc_value": ""}
+            st.compliance.append(item)
+        val = (st.typed.get("x_" + key) or "").strip()
+        item["value"] = val
+        item["number_label"] = det["label"]
+        item["number"] = ("ok" if format_ok(det["format"], val) else "bad") if val else ("missing" if det["required"] else "optional")
+        item["doc_value"] = next((s_.values["x_" + key] for s_ in st.sources if s_.kind == key and s_.values.get("x_" + key)), "")
+    if st.matrix and st.compliance:                                           # a required document that was not provided is a visible row in the consistency table
+        fields = st.matrix["fields"]
+        for c in st.compliance:
+            xk = "x_" + c["key"]
+            if c["number"] is not None and xk not in dict(fields):
+                fields.append((xk, c.get("number_label") or c["label"]))
+                for r_ in st.matrix["rows"]:
+                    r_["cells"][xk] = {"state": "na", "value": "", "reason": ""}
+        for c in st.compliance:
+            if c["doc"] == "missing":
+                cells = {f: {"state": "na", "value": "", "reason": ""} for f in st.matrix["rows"][0]["cells"]}      # every column, like every other row
+                if "x_" + c["key"] in cells:
+                    cells["x_" + c["key"]] = {"state": "missing", "value": "", "reason": f"The {c['label']} was not provided."}
+                st.matrix["rows"].append({"label": c["label"], "ref": "Not provided", "kind": c["key"], "cells": cells, "absent": True})
     # evidence table
     def doc(k): return st.doc_values.get(k, "")
-    hcells = [r["cells"]["account_holder"]["state"] for r in (st.matrix or {}).get("rows", [])]
+    hcells = [r["cells"].get("account_holder", {}).get("state") for r in (st.matrix or {}).get("rows", [])]
     holder_res = "mismatch" if "bad" in hcells else ("match" if "ok" in hcells else "")
     gp = (st.gst.fields if g else {}) or {}
     pan_ok = "match" if (st.derived_pan or (pan_used and g and v.pan_from_gstin(v.clean(p.get('gstin'))) == pan_used)) else ("mismatch" if flagged(st, "R08") else "")
@@ -1272,7 +1315,10 @@ def stage_reconcile(ctx, st: RunState) -> str:
     for d in custom_details(ctx.policy):
         val = (st.typed.get("x_" + d["key"]) or "").strip()
         if val and applies_to(d, st.country):
-            st.table.append({"label": d["label"], "declared": val, "document": "", "government": "", "result": "format ok" if format_ok(d["format"], val) else "needs review"})
+            seen_doc = next((s_.values["x_" + d["key"]] for s_ in st.sources if s_.kind == d["key"] and s_.values.get("x_" + d["key"])), "")
+            ok_fmt = format_ok(d["format"], val)
+            st.table.append({"label": d["label"], "declared": val, "document": seen_doc, "government": "",
+                             "result": ("match" if v.clean(val) == v.clean(seen_doc) else "mismatch") if (seen_doc and ok_fmt) else ("format ok" if ok_fmt else "needs review")})
     r12 = next((c for c in st.checks["reconcile"] if c.rule == "R12"), None)
     return {"match": "Names agree", "explained": "Name difference explained by evidence", "mismatch": "Name difference needs review", "needs review": "Rename needs confirmation"}.get(
         result_of.get("legal_name", ""), (r12.reason if r12 and r12.result == SKIP else "Nothing to reconcile yet"))

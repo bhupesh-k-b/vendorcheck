@@ -47,11 +47,12 @@ class Source:
     unclear: set = field(default_factory=set)  # fields read with low confidence
     authority: bool = False                     # government record: breaks ties
     foreign: str = ""                           # a bank document in somebody else's name: shown, never used as the vendor's
+    title: str = ""                             # the name of a document you added in Settings
     proprietor: str = ""                        # a proprietor's PAN card carries the person's name, not the firm's: expected
 
     @property
     def label(self) -> str:
-        return DOC_LABEL.get(self.kind, self.kind)
+        return self.title or DOC_LABEL.get(self.kind, self.kind)
 
 
 def norm(fld: str, value: str) -> str:
@@ -108,10 +109,16 @@ def with_derived_pan(sources: list[Source]) -> None:
             s.values["pan"] = v.pan_from_gstin(g)
 
 
-def build(sources: list[Source], threshold: float = 92) -> dict:
+def build(sources: list[Source], threshold: float = 92, extra: list[tuple[str, str]] | None = None, doc_fields: dict[str, str] | None = None) -> dict:
+    """`extra`: (field, label) for the numbers you added in Settings; `doc_fields`: the document you added -> the number it carries."""
+    extra = extra or []
+    ALL = FIELDS + [(f, l) for f, l in extra if f not in dict(FIELDS)]
+    fnames = dict(ALL)
+    expected = {**EXPECTED, "typed": EXPECTED["typed"] + [f for f, _ in extra], **{k: [f] for k, f in (doc_fields or {}).items()}}
+    optional_typed = {"account_holder"} | {f for f, _ in extra}
     with_derived_pan(sources)
     present = {f for s in sources for f in s.values}
-    applicable = [f for f, _ in FIELDS if f in present or f == "legal_name"]
+    applicable = [f for f, _ in ALL if f in present or f == "legal_name"]
     consensus: dict[str, str | None] = {}
     for f in applicable:
         ref_field = "legal_name" if f == "account_holder" else f
@@ -137,7 +144,7 @@ def build(sources: list[Source], threshold: float = 92) -> dict:
     rows, conflicts = [], {}
     for s in sources:
         cells = {}
-        for f, _ in FIELDS:
+        for f, _ in ALL:
             if s.foreign and f in ("bank_account", "ifsc", "account_holder", "legal_name"):
                 cells[f] = {"state": "foreign", "value": s.values.get(f, ""), "reason": f"{s.label} is in the name of {s.foreign}, not the vendor."}
                 continue
@@ -145,14 +152,14 @@ def build(sources: list[Source], threshold: float = 92) -> dict:
                 cells[f] = {"state": "proprietor", "value": s.proprietor,
                             "reason": f"The PAN card is in the proprietor's own name ({s.proprietor}). That is expected for a proprietorship, so it is not compared with the firm's name."}
                 continue
-            if f not in applicable or f not in EXPECTED.get(s.kind, []) or (s.kind == "typed" and f == "account_holder" and not s.values.get(f)):
+            if f not in applicable or f not in expected.get(s.kind, []) or (s.kind == "typed" and f in optional_typed and not s.values.get(f)):
                 cells[f] = {"state": "na", "value": "", "reason": ""}      # the typed holder name is optional: blank is neutral, not a gap
                 continue
             val = s.values.get(f, "")
             if f in s.unclear:
-                cells[f] = {"state": "unclear", "value": val, "reason": f"{s.label}: the {dict(FIELDS)[f].lower()} could not be read clearly."}
+                cells[f] = {"state": "unclear", "value": val, "reason": f"{s.label}: the {fnames[f].lower()} could not be read clearly."}
             elif not val:
-                cells[f] = {"state": "missing", "value": "", "reason": f"{s.label} does not show the {dict(FIELDS)[f].lower()}."}
+                cells[f] = {"state": "missing", "value": "", "reason": f"{s.label} does not show the {fnames[f].lower()}."}
             else:
                 ref = consensus.get(f)
                 if f == "account_holder":
@@ -174,10 +181,10 @@ def build(sources: list[Source], threshold: float = 92) -> dict:
     for r in rows:
         for f, c in r["cells"].items():
             if c["state"] in ("ok", "bad", "missing", "unclear"):
-                total += WEIGHT[f]
-                got += WEIGHT[f] if c["state"] == "ok" else 0
+                total += WEIGHT.get(f, 2)
+                got += WEIGHT.get(f, 2) if c["state"] == "ok" else 0
     score = round(100 * got / total) if total else None
-    return {"fields": [(f, l) for f, l in FIELDS if f in applicable], "rows": rows, "conflicts": conflicts, "score": score, "band": band_of(score),
+    return {"fields": [(f, l) for f, l in ALL if f in applicable], "rows": rows, "conflicts": conflicts, "score": score, "band": band_of(score),
             "consensus": {f: c for f, c in consensus.items()}, "cells_checked": total, "agreement": score, "coverage": None}
 
 

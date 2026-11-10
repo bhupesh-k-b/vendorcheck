@@ -15,8 +15,8 @@
   </script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/app.js"></script>
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_v() }}">
+  <script src="/static/app.js?v={{ asset_v() }}"></script>
 </head>
 <body class="h-full bg-[#f6f7f9] font-sans text-[15px] text-slate-800 antialiased" x-data="{ reveal: true, srcOpen: false }" :class="reveal ? 'reveal' : ''">
 {% set icons = {
