@@ -115,7 +115,7 @@ class ReaderUnavailable(Exception):
 class Reader(Protocol):
     configured: bool
 
-    def read_document(self, f: dict, progress: Callable[[str], None] | None = None) -> dict: ...
+    def read_document(self, f: dict, progress: Callable[[str], None] | None = None, confidence: float | None = None) -> dict: ...
     def read_critical(self, f: dict, progress: Callable[[str], None] | None = None) -> dict[str, str]: ...
     def read_screenshot(self, f: dict, source: str, progress: Callable[[str], None] | None = None) -> dict[str, str]: ...
 
@@ -311,7 +311,7 @@ class GeminiReader:
         return {"pages": [p.model_dump() for p in out.pages if p.page in pages],
                 "fields": [{**x.model_dump(), "value": clean_value(x.value), "snippet": clean_value(x.snippet)[:120]} for x in out.fields if x.page in pages]}
 
-    def read_document(self, f: dict, progress=None) -> dict:
+    def read_document(self, f: dict, progress=None, confidence=None) -> dict:
         if (hit := self._cached(f, "doc")):
             return hit
         out, via = None, "gemini-vision"
@@ -523,8 +523,8 @@ class HybridReader:
             s.merge(ExtractionCache(key=f"{f['sha256']}:{kind}", payload=payload, created_at=utcnow()))
             s.commit()
 
-    def read_document(self, f: dict, progress=None) -> dict:
-        if (hit := self._cached(f, "doc-local")):
+    def read_document(self, f: dict, progress=None, confidence=None) -> dict:
+        if (hit := self._cached(f, "doc-local2")):
             return hit
         from . import extract
         texts = ocr_pages(f)
@@ -559,12 +559,13 @@ class HybridReader:
         llm_on = self.llm is not None and config.env("READER_AI", "1") != "0"
         high = llm_on and config.reader_quality() == "high"
         scores = OCR_SCORES.get(f.get("sha256", ""), [])
+        floor = confidence if confidence is not None else 0.80       # below this a scanned page is read from its image as well
         names_f = ("legal_name", "account_holder", "trade_name", "previous_name", "new_name")
         notes = []
         # tier 1: pages OCR cannot be trusted on (low confidence, handwriting, almost no text) are read from their IMAGE
         vision = set()
         if high and hasattr(self.llm, "vision_read"):
-            vision = {n for n in imagey if n <= len(scores) and (scores[n - 1] < 0.80 or len(texts[n - 1].strip()) < 20)}
+            vision = {n for n in imagey if n <= len(scores) and (scores[n - 1] < floor or len(texts[n - 1].strip()) < 20)}
             vision = set(sorted(vision)[: self.AI_MAX_VISION_PAGES])
         if vision:
             try:
@@ -606,8 +607,11 @@ class HybridReader:
         if notes:
             via = "ocr+rules+ai(" + "; ".join(notes) + ")"
         pages.sort(key=lambda p: p["page"])
+        for p in pages:          # how well the page could be read (1.0 for a typed PDF page), kept with the result so a policy change needs no re-read
+            if 1 <= p["page"] <= len(scores):
+                p["confidence"] = round(float(scores[p["page"] - 1]), 3)
         payload = {"via": via, "pages": pages, "hints": hints, "fields": [{**x, "value": clean_value(x["value"])} for x in fields]}
-        self._store(f, "doc-local", payload)
+        self._store(f, "doc-local2", payload)
         return payload
 
     def read_critical(self, f: dict, progress=None) -> dict:
@@ -664,7 +668,7 @@ class NullReader:
     name = "none"
     configured = False
 
-    def read_document(self, f, progress=None): raise ReaderUnavailable("GEMINI_API_KEY is not set, so documents cannot be read.")
+    def read_document(self, f, progress=None, confidence=None): raise ReaderUnavailable("GEMINI_API_KEY is not set, so documents cannot be read.")
     def read_critical(self, f, progress=None): raise ReaderUnavailable("GEMINI_API_KEY is not set.")
     def read_screenshot(self, f, source, progress=None): raise ReaderUnavailable("GEMINI_API_KEY is not set.")
 
@@ -677,7 +681,7 @@ class StaticReader:
     def __init__(self, docs: dict[str, dict], critical: dict[str, dict] | None = None, screenshots: dict[str, dict] | None = None):
         self.docs, self.critical, self.screenshots, self.calls = docs, critical or {}, screenshots or {}, []
 
-    def read_document(self, f, progress=None):
+    def read_document(self, f, progress=None, confidence=None):
         self.calls.append(("doc", f["name"]))
         return self.docs[f["name"]]
 

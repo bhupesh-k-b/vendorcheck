@@ -223,6 +223,14 @@ def test_rerunning_all_checks_opens_a_new_run_without_error():
     assert case(ctx, cid).waiting_on == "finance"
 
 
+def test_a_scanned_number_below_the_reading_confidence_minimum_is_not_trusted():
+    from vendorcheck.stages import _is_low
+    c = {"value": "AAACK5521D", "second": "AAACK5521D", "conf": 0.90}      # both reads agree, the page was read at 90%
+    assert not _is_low("pan", c, 0.80) and _is_low("pan", c, 0.95)         # raising the minimum to 95% makes the same read untrusted
+    assert not _is_low("pan", {**c, "conf": None}, 0.95)                    # an unknown confidence is not enforced
+    assert not _is_low("pan", {**c, "conf": 1.0}, 0.99)                     # a typed PDF page is read at 100%
+
+
 def test_form_state_marks_an_unfilled_or_incomplete_typed_form():
     from vendorcheck.web.views import form_state
     assert form_state({"country": "IN", "contact_name": "Asha", "vendor_type": "goods"}) == {"state": "empty", "missing": []}

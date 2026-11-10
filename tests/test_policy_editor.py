@@ -12,7 +12,7 @@ from vendorcheck.web.app import create_app
 
 
 def full_form(**over):
-    f = {"name_match_threshold": "85", "require_documents": "always", "require_commercial_setup": "on", "msme_payment_terms_days": "30",
+    f = {"name_match_threshold": "85", "read_confidence": "95", "require_documents": "always", "require_commercial_setup": "on", "msme_payment_terms_days": "30",
          "filing_gap_months": "3", "reverify_days": "180", "recheck_company_status": "20", "recheck_advisory": "60",
          "blocklist_pans": "ABCDE1234F\nPQRSX9876Z", "blocklist_accounts": "000000000000"}
     for k, (_, _, allowed) in policy.REQUIREMENTS.items():
@@ -24,7 +24,7 @@ def full_form(**over):
 def test_valid_form_updates_every_setting():
     new, errors = policy.policy_from_form(full_form(), policy.load_policy())
     assert errors == []
-    assert new["name_match_threshold"] == 85 and new["require_documents"] == "always" and new["msme_payment_terms_days"] == 30
+    assert new["read_confidence"] == 95 and new["name_match_threshold"] == 85 and new["require_documents"] == "always" and new["msme_payment_terms_days"] == 30
     assert new["rename_requires_person"] is False                       # an unticked switch is off
     assert new["recheck_days"] == {"company_status": 20, "advisory": 60} and new["reverify_days"] == 180
     assert new["blocklist"] == {"pans": ["ABCDE1234F", "PQRSX9876Z"], "accounts": ["000000000000"]}

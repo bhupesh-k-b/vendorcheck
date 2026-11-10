@@ -265,7 +265,8 @@
               <img loading="lazy" src="/pagepng/{{ f.sha }}/{{ p.page }}?s=thumb" alt="Page {{ p.page }}" class="h-28 w-full rounded object-cover object-top">
               <div class="mt-1 px-0.5 text-[11px] leading-tight"><span class="font-semibold text-slate-700">p.{{ p.page }}</span>
                 <span class="text-slate-600">{% for t in p.types %}{{ t.doc_type|replace('_', ' ') }}{% if not loop.last %} + {% endif %}{% else %}no document found{% endfor %}</span>
-                {% if p.foreign %}<div class="font-semibold text-amber-800">⚠ not the vendor's: {{ p.foreign }}</div>{% endif %}</div>
+                {% if p.foreign %}<div class="font-semibold text-amber-800">⚠ not the vendor's: {{ p.foreign }}</div>{% endif %}
+                {% if p.conf is not none and p.floor and p.conf < p.floor %}<div class="font-semibold text-amber-800">Low reading confidence · {{ p.conf }}%</div>{% endif %}</div>
             </button>
           {% endfor %}
         </div>
@@ -288,6 +289,10 @@
               <template x-for="t in info().types"><p class="mt-1"><span class="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800" x-text="pretty(t.doc_type)"></span> <span class="text-slate-600" x-text="t.note"></span></p></template>
               <p x-show="!info().types.length" class="mt-1 text-slate-500">Nothing we could use (blank, instructions or unreadable).</p>
               <p x-show="info().foreign" class="mt-3 rounded-lg bg-amber-50 p-2 text-amber-900">⚠ This bank document is in the name of <strong x-text="info().foreign"></strong>, not the vendor. It was not used as the vendor's bank details.</p>
+              <div x-show="info().conf != null" class="mt-4 rounded-lg px-3 py-2 text-xs" :class="info().conf >= info().floor ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
+                <div class="flex items-center justify-between"><span class="font-medium">Reading confidence</span><span class="text-sm font-semibold tabular-nums" x-text="info().conf + '%'"></span></div>
+                <p class="mt-0.5" x-text="info().conf >= info().floor ? 'At or above your ' + info().floor + '% minimum.' : 'Below your ' + info().floor + '% minimum: numbers read from this page are not trusted, and the vendor is asked to confirm them.'"></p>
+              </div>
               <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Details read from this page</p>
               <dl class="mt-1 divide-y divide-slate-100">
                 <template x-for="f in info().fields"><div class="flex justify-between gap-3 py-1.5"><dt class="text-slate-500" x-text="pretty(f.field)"></dt><dd class="mono text-right text-slate-900" x-text="f.value"></dd></div></template>

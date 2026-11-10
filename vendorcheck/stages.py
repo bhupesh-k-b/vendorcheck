@@ -122,10 +122,12 @@ def _fmt_ok(field_name: str, value: str) -> bool:
     return True
 
 
-def _is_low(fld: str, c: dict) -> bool:
-    """Is this value read from pixels NOT trustworthy? Needs: no '?', a well-formed value, and (when a second read exists)
-    an identical second read. A second read that saw nothing is tolerated only for fields with a strong format check."""
+def _is_low(fld: str, c: dict, floor: float = 0.0) -> bool:
+    """Is this value read from pixels NOT trustworthy? Needs: the page read at or above the confidence minimum (policy), no '?', a well-formed
+    value, and (when a second read exists) an identical second read. A second read that saw nothing is tolerated only for fields with a strong format check."""
     r1, r2 = c["value"], c["second"]
+    if c.get("conf") is not None and c["conf"] < floor:
+        return True
     if "?" in r1 or not _fmt_ok(fld, r1):
         return True
     if r2 is None:
@@ -159,7 +161,7 @@ MATRIX_FIELD = {"legal_name": "legal_name", "pan": "pan", "gstin": "gstin", "cin
 BANK_DOCS = {"bank_details_form", "cancelled_cheque_or_bank_letter"}
 
 
-def build_doc_map(st: RunState, foreign: dict) -> list:
+def build_doc_map(st: RunState, foreign: dict, floor_pct: int = 0) -> list:
     """Page-by-page index of every uploaded file: what each page is and the key details found on it."""
     out = []
     for f in st.files:
@@ -172,13 +174,15 @@ def build_doc_map(st: RunState, foreign: dict) -> list:
             types = [p for p in doc["pages"] if p["page"] == pg]
             fields = [{"field": x["field"], "value": x["value"], "doc_type": x.get("doc_type", "")} for x in doc["fields"]
                       if x["page"] == pg and x["field"] in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder", "new_name", "previous_name")]
+            confs = [p["confidence"] for p in types if p.get("confidence") is not None]
             pages.append({"page": pg, "types": [{"doc_type": p["doc_type"], "note": p.get("note", ""), "legible": p["legible"]} for p in types],
+                          "conf": round(100 * min(confs)) if confs else None, "floor": floor_pct,
                           "fields": fields, "foreign": next((h for (fn, p2, dt), h in foreign.items() if fn == f["name"] and p2 == pg), "")})
         out.append({"sha": f["sha256"], "name": f["name"], "pages": pages})
     return out
 
 
-def build_sources(st: RunState, cands: dict, typed: dict) -> list:
+def build_sources(st: RunState, cands: dict, typed: dict, floor: float = 0.0) -> list:
     """One matrix row per document (file x document type) plus the typed form."""
     out = []
     tv = {k: typed[k] for k in ("legal_name", "pan", "gstin", "cin", "bank_account", "ifsc", "account_holder") if typed.get(k)}
@@ -200,7 +204,7 @@ def build_sources(st: RunState, cands: dict, typed: dict) -> list:
                 groups[key] = MSource(c["doc_type"], c["file"], {}, foreign=c["foreign"])
             s = groups.setdefault(key, MSource(c["doc_type"], c["file"], {}))
             pages.setdefault(key, set()).add(c["page"])
-            low = fld in CRITICAL and c["imagey"] and _is_low(fld, c)
+            low = fld in CRITICAL and c["imagey"] and _is_low(fld, c, floor)
             if mf not in s.values:
                 s.values[mf] = c["value"]
                 if low:
@@ -215,6 +219,7 @@ def build_sources(st: RunState, cands: dict, typed: dict) -> list:
 
 def stage_read(ctx, st: RunState) -> str:
     typed = st.typed
+    floor = ctx.policy.get("read_confidence", 80) / 100      # the reading-confidence minimum (Settings)
     confirmed = set(typed.get("_confirmed", []))
     cands: dict[str, list[dict]] = {}
     pages_summary = []
@@ -222,7 +227,7 @@ def stage_read(ctx, st: RunState) -> str:
 
     for f in st.files:
         try:
-            doc = ctx.reader.read_document(f, progress=st.progress)
+            doc = ctx.reader.read_document(f, progress=st.progress, confidence=floor)
         except ReaderUnavailable as e:
             unavailable = str(e)
             st.add(Check("R20", WAIT, key="R20:reader", name="Document reader reachable", owner="system", kind="retry",
@@ -267,6 +272,7 @@ def stage_read(ctx, st: RunState) -> str:
             st.ev("doc_type", p["doc_type"], "Document reader", "document", f"{f['name']} p.{p['page']}", "document",
                   {"legible": p["legible"], "handwritten": p["handwritten"]})
 
+        page_conf = {p["page"]: p["confidence"] for p in doc["pages"] if p.get("confidence") is not None}
         for x in doc["fields"]:
             if not x["value"]:
                 continue
@@ -275,6 +281,7 @@ def stage_read(ctx, st: RunState) -> str:
                 "value": x["value"], "file": f["name"], "sha": f["sha256"], "page": x["page"], "snippet": x["snippet"],
                 "doc_type": x.get("doc_type") or pt.get("doc_type", "other"), "imagey": x["page"] in img_pages, "handwritten": pt.get("handwritten", False),
                 "second": _second(crit, x["page"], x["field"]) if x["field"] in CRITICAL else None,
+                "conf": page_conf.get(x["page"]),
             })
             if x["field"] in ("previous_name", "new_name"):
                 continue
@@ -316,8 +323,8 @@ def stage_read(ctx, st: RunState) -> str:
                          reason=f"Pages {pgs} of '{fn}' are bank documents in the name of {holder}, not {vendor_name}. They were NOT used as the vendor's bank "
                          "details, and no bank document in the vendor's own name was found.",
                          vendor_text=vtext("R04_foreign", file=fn, pages=pgs, holder=holder, vendor=vendor_name), vendor_upload=True, **common))
-    st.doc_map = build_doc_map(st, foreign)
-    st.sources = build_sources(st, cands, typed)
+    st.doc_map = build_doc_map(st, foreign, round(100 * floor))
+    st.sources = build_sources(st, cands, typed, floor)
 
     # ---- merge: typed > registration form > other documents; critical numbers must be confident ----
     profile: dict[str, Any] = {}
@@ -336,8 +343,8 @@ def stage_read(ctx, st: RunState) -> str:
             for c in form + other:
                 if c["imagey"]:
                     r1, r2 = c["value"], c["second"]
-                    if _is_low(k, c):
-                        low = low or {"reads": [r1, r2 or ""], "ref": f"{c['file']} p.{c['page']}", "snippet": c["snippet"]}
+                    if _is_low(k, c, floor):
+                        low = low or {"reads": [r1, r2 or ""], "ref": f"{c['file']} p.{c['page']}", "snippet": c["snippet"], "conf": c.get("conf")}
                         continue
                 highs.append(c)
             # do ALL sources agree? typed form + every confidently-read document
@@ -401,7 +408,8 @@ def stage_read(ctx, st: RunState) -> str:
                          expected="The same value on every document" if u.get("conflict") else "Both reads identical and well-formed",
                          found=where if u.get("conflict") else "Reads differ or are unclear",
                          title=f"confirm the {LABELS[k]}", reason=f"The {LABELS[k]} is not the same everywhere: {where}."
-                         if u.get("conflict") else f"The {LABELS[k]} on {u['ref']} could not be read with confidence",
+                         if u.get("conflict") else f"The {LABELS[k]} on {u['ref']} could not be read with confidence"
+                         + (f" (the page was read at {round(100 * u['conf'])}%, below the {round(100 * floor)}% minimum)" if u.get("conf") is not None and u["conf"] < floor else ""),
                          vendor_text=vtext(code, label=LABELS[k], seen=seen, where="; ".join(u.get("where_vendor", []))), vendor_fields=[k] + (["bank_account_confirm"] if k == "bank_account" else []),
                          evidence_ref=u["ref"], meta={"reads_masked": [v.mask(v.clean(r)) for r in u["reads"]]}))
         if not st.unconfirmed:
@@ -416,7 +424,9 @@ def stage_read(ctx, st: RunState) -> str:
         return f"No documents attached · {n_fields} typed fields used"
     vias = sorted({r["doc"].get("via", "") for r in st.reads.values() if r.get("doc")} - {""})
     how = {"ocr+rules": "local OCR and rules only, no AI"}.get(vias[0], vias[0]) if len(vias) == 1 else ", ".join(vias)
-    return (f"{len(st.files)} file{'s' if len(st.files) != 1 else ''} read ({how}) · {len(st.unconfirmed)} low-confidence · {n_fields} fields in profile")
+    scanned = [p["confidence"] for r in st.reads.values() if r.get("doc") for p in r["doc"]["pages"] if p.get("confidence") is not None and p["confidence"] < 1.0]
+    conf = f" · lowest scanned page {round(100 * min(scanned))}% (minimum {round(100 * floor)}%)" if scanned else ""
+    return (f"{len(st.files)} file{'s' if len(st.files) != 1 else ''} read ({how}) · {len(st.unconfirmed)} low-confidence{conf} · {n_fields} fields in profile")
 
 
 # ============ 3. VALIDATE (offline, no API calls) ============

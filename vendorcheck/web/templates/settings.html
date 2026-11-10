@@ -46,6 +46,19 @@
     <div class="divide-y divide-slate-100 px-6">
 
       <div class="py-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Document reading</p>
+        <div class="mt-3" x-data="{ v: {{ pol.read_confidence }} }">
+          <div class="flex items-center justify-between gap-6">
+            <span class="min-w-0"><span class="block text-sm font-medium text-slate-900">Minimum reading confidence</span><span class="block text-xs text-slate-500">A GSTIN, PAN, CIN, account number or IFSC read from a scan or photo below this confidence is not trusted, and the vendor is asked to confirm it. Typed PDFs read at 100%.</span></span>
+            <span class="w-14 text-right text-lg font-semibold tabular-nums text-slate-900" x-text="v + '%'"></span>
+          </div>
+          <input type="range" min="50" max="100" step="1" x-model.number="v" class="mt-3 w-full accent-indigo-600" aria-label="Minimum reading confidence">
+          <input type="hidden" name="read_confidence" :value="v">
+          <div class="mt-1 flex justify-between text-[11px] text-slate-400"><span>Lenient 50%</span><span x-text="v >= 95 ? 'Very strict: most scans will need confirmation' : (v >= 85 ? 'Strict' : (v >= 70 ? 'Balanced' : 'Lenient'))"></span><span>Strict 100%</span></div>
+        </div>
+      </div>
+
+      <div class="py-5">
         <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Name matching</p>
         <div class="mt-3" x-data="{ v: {{ pol.name_match_threshold }} }">
           <div class="flex items-center justify-between gap-6">

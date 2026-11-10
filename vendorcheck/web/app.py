@@ -70,6 +70,7 @@ def create_app(ctx=None) -> FastAPI:
         """The simulated-registry context, built once per base context."""
         if getattr(st, "sim_ctx", None) is None or getattr(st, "sim_base", None) is not st.ctx:
             st.sim_ctx, st.sim_base = simulation.sim_ctx(st.ctx), st.ctx
+        simulation.sync_policy(st.sim_ctx, st.ctx)
         return st.sim_ctx
 
     def case_of(request: Request, s: Session):

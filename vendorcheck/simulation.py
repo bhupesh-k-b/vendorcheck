@@ -24,6 +24,15 @@ def kaveri_response() -> dict:
         "address": "Plot 41, MIDC Bhosari, Pune, Maharashtra", "pincode": "411026", "einvoice_status": "Yes", "block_status": "Unblocked"}}
 
 
+def sync_policy(sim: Ctx, base: Ctx) -> None:
+    """Keep the simulated policy equal to the current real policy (plus the simulation rules), so a change made in Settings applies to simulated cases too."""
+    new = simulation_policy(deepcopy(base.policy))
+    if sim.policy is base.policy:          # one shared dict: nothing to sync (and clearing it would empty the real policy)
+        return
+    sim.policy.clear()
+    sim.policy.update(new)
+
+
 def sim_ctx(base: Ctx, fixtures: dict | None = None) -> Ctx:
     """The base context with the registry replaced by recorded responses, the simulation policy, and sim=True (cases are flagged and kept out of the vendor master)."""
     gst = RecordedGst(fixtures if fixtures is not None else {KAVERI_GSTIN: kaveri_response()})

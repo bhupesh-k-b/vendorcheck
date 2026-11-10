@@ -10,6 +10,7 @@ from . import config
 
 DEFAULTS = {
     "name_match_threshold": 92,
+    "read_confidence": 80,                      # % : numbers read from a scan or photo below this are not trusted; the vendor is asked to confirm them
     "rename_requires_person": False,
     "requirements": {
         "gst_registration": ["live", "assisted"],
@@ -77,6 +78,7 @@ def policy_from_form(form, current: dict) -> tuple[dict, list[str]]:
     errors: list[str] = []
     new = deepcopy(current)
     new["name_match_threshold"] = _int(form, "name_match_threshold", 50, 100, "Name match threshold", errors, current["name_match_threshold"])
+    new["read_confidence"] = _int(form, "read_confidence", 50, 100, "Reading confidence", errors, current["read_confidence"])
     new["rename_requires_person"] = form.get("rename_requires_person") == "on"
     mode = form.get("require_documents", current["require_documents"])
     new["require_documents"] = mode if mode in DOCUMENT_MODES else current["require_documents"]
