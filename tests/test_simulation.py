@@ -43,6 +43,8 @@ def test_a_simulated_submission_is_flagged_approved_end_to_end_and_kept_out_of_t
         c.cookies.set("vc_user", "neha")
         c.post(f"/tasks/{tid}/approve", data={"decision": "approve"})
         assert "Approved" in c.get("/cases/1").text
+        page = c.get(f"/runs/{rid}").text                                                 # the finished item stays visible, with who confirmed and who approved
+        assert 'id="completed"' in page and "Confirmed" in page and "Arjun" in page and "Neha" in page
         with Session(ctx.engine) as s:
             assert s.exec(select(VendorMaster)).all() == []                          # a simulated approval never creates a vendor record
 

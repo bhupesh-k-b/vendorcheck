@@ -186,6 +186,21 @@
         </div>
       {% endfor %}
     </div>
+    {% set done = tasks|selectattr('status', 'equalto', 'approved')|list %}
+    {% if done %}
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">Completed</h3>
+    <ul class="mt-2 space-y-2" id="completed">
+      {% for t in done %}
+      <li class="card flex items-start gap-3 p-3.5">
+        {{ m.mark('ok' if t.outcome == 'confirmed' else 'bad') }}
+        <div class="min-w-0 text-sm">
+          <p class="font-semibold text-slate-900">{{ t.title|upfirst }}: {% if t.outcome == 'confirmed' %}approved{% else %}rejected{% endif %}</p>
+          <p class="mt-0.5 text-slate-600">{% if t.outcome == 'confirmed' %}Confirmed{% else %}Not confirmed{% endif %} by <strong>{{ t.resolved_by }}</strong>{% if t.method %} ({{ t.method|lower }}){% endif %}{% if t.note %}, “{{ t.note }}”{% endif %}. Approved by <strong>{{ t.approved_by }}</strong>{% if t.approved_at %} · {{ t.approved_at|ist }}{% endif %}.</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
     <div class="mt-3 flex flex-wrap gap-3 text-sm">
       <form method="post" action="/cases/{{ case.id }}/retry"><button class="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Re-run all checks</button></form>
       {% if not country or country == 'IN' %}<form method="post" action="/cases/{{ case.id }}/filing-history"><button class="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50" title="Fetches GST filing history live. Uses one API credit.">Check filing history (1 credit)</button></form>{% endif %}
