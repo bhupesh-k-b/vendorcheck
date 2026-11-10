@@ -36,7 +36,7 @@ def test_a_simulated_submission_is_flagged_approved_end_to_end_and_kept_out_of_t
         wait_done(c, rid)
         with Session(ctx.engine) as s:
             assert s.exec(select(Case)).first().sim is True
-        assert "Simulated test case" in c.get("/cases/1").text and "Simulated" in c.get("/").text
+        assert "Simulated" in c.get("/").text and "synthetic for this fictional company" not in c.get("/cases/1").text
         c.cookies.set("vc_user", "arjun")
         tid = int(re.search(r"/tasks/(\d+)/resolve", c.get(f"/runs/{rid}").text).group(1))
         c.post(f"/tasks/{tid}/resolve", data={"outcome": "confirmed", "method": "Called the bank", "note": "ok"})
